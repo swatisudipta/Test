@@ -1,0 +1,407 @@
+from langchain.schema import Document
+from langchain_community.vectorstores import FAISS
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_experimental.text_splitter import SemanticChunker
+from langchain.chains import LLMChain
+from langchain.memory import ConversationBufferMemory
+from langchain_core.messages import SystemMessage
+from langchain_core.prompts.chat import MessagesPlaceholder
+from langchain_core.prompts import PromptTemplate
+from langchain.schema.output_parser import StrOutputParser
+from langchain_community.llms import CTransformers
+from langchain_core.prompts import FewShotPromptTemplate
+from transformers import AutoTokenizer, AutoModel
+from transformers import BertTokenizer, BertModel
+from langchain_community.llms import LlamaCpp
+from langchain.tools import Tool
+from langchain.agents import Agent,AgentExecutor
+from langchain_experimental.generative_agents import GenerativeAgent,GenerativeAgentMemory
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.docstore import InMemoryDocstore
+from langchain.retrievers import TimeWeightedVectorStoreRetriever
+
+import faiss
+import torch
+import yaml
+import faiss
+import numpy as np
+import re
+import json
+import prompt_pipeline_spec as promptPipeline
+
+# Initialize the tokenizer and model for embeddings
+model =  AutoModel.from_pretrained("C:/Users/196311/Documents/GenAI/Models/all-MiniLM-L6-v2")
+tokenizer= AutoTokenizer.from_pretrained("C:/Users/196311/Documents/GenAI/Models/all-MiniLM-L6-v2")
+
+
+def extract_stages(pipeline_data):
+    
+    stages = []
+    #Extract additional attributes
+    additionai_attributes ={key:value for key,value in pipeline_data.items() if key not in {"stages","jobs","steps"}}
+    if "stages" in pipeline_data:
+        # Extract stages if present
+        stages = pipeline_data["stages"]
+    elif "jobs" in pipeline_data:
+        # Extract jobs if stages are not present
+        for job in pipeline_data["jobs"]:
+            stage_name = guess_stage_name(job)
+            stages.append({"stage": stage_name, "jobs":[job]})
+    elif "steps" in pipeline_data:
+        # Determine stage and extract steps if stages and jobs are not present
+        for step in pipeline_data["steps"]:
+            stage_name = guess_stage_name(step)
+            stages.append({"stage": stage_name, "steps":[step]})
+       
+    
+    return stages,additionai_attributes
+
+
+def guess_stage_name_from_display_name(step):
+    # Check if 'displayName' is present in the step
+    if 'displayName' in step:
+        return step['displayName']
+    if 'script' in step and isinstance(step['script'], str):
+        # Extract displayName from script if available
+        display_name_match = re.search(r'displayName:\s*(.+)', step['script'])
+        if display_name_match:
+            return display_name_match.group(1).strip()
+    return None
+
+def guess_stage_name_from_keywords(step):
+    # Fallback to keyword matching if displayName is not found
+    keywords = ["build", "test", "deploy", "release", "package"]
+    for keyword in keywords:
+        if keyword in step.lower():
+            return keyword.capitalize()
+    return "Unknown"
+
+def guess_stage_name(step):
+    # First try to extract displayName
+    stage_name = guess_stage_name_from_display_name(step)
+    if stage_name:
+        return stage_name
+    
+    # Then try keyword matching as a fallback
+    return guess_stage_name_from_keywords(step)
+
+# Function to create embeddings for a given text
+def get_embeddings(text):
+    
+    
+    inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True)
+    with torch.no_grad():
+        embeddings = model(**inputs)
+    return embeddings.last_hidden_state.mean(dim=1).squeeze().numpy()
+
+# Query the FAISS Index Function
+def query_faiss_index(few_shot_examples,index,query_text, k=2):
+    query_embedding = get_embeddings(query_text).reshape(1, -1)
+    distances, indices = index.search(query_embedding, k)
+    relevant_examples=[few_shot_examples[i] for i in indices[0]]
+    return relevant_examples
+
+def create_chain(relevant_examples, model_path):
+    #Format relevant examples
+    formatted_examples = [
+    {
+        "input":"Azure Pipeline Stage",
+        "target": "Pipeline Specification",
+        "example_input":example["example_input"],
+        "example_output":example["example_output"]
+    } for example in relevant_examples if example["input"]=="Azure Pipeline Stage" and example["target"]=="Pipeline Specification"
+    ]
+
+
+    #Define the FewShotTemplate using the retrieved examples
+    example_prompt=PromptTemplate(template="""input:{input}\n target: {target}\n example_input:{example_input}\n example_output:{example_output}""",input_variables=["input","target","example_input"])
+    template= FewShotPromptTemplate(
+        examples=formatted_examples,
+        example_prompt=example_prompt,
+        prefix=promptPipeline.pipelinePrompt_TRAI,
+        suffix=" input: {input}\n target: {target}\n example_input:{example_input}\n example_output:",
+        input_variables=["input","target","example_input"]
+    )  
+        # Define the FewShotTemplate using the retrieved examples
+   
+    # Initialize the LlamaCpp model  
+    llm = LlamaCpp(
+        model_path=model_path,
+        temperature=0.1,
+        max_tokens=20000,
+        top_p=1,
+        n_ctx=10240,
+        f16_kv=True,
+        verbose=False
+    )       
+    
+    # Define the chain function
+    def chain(input_text):
+        formatted_input = template.format(input="Azure Pipeline Stage",target="Pipeline Specification",example_input=input_text)
+       # formatted_input = template.format(input="Azure Pipeline Stage",target="Pipeline Specification",example_input=input_text)
+        return llm.invoke(formatted_input)
+        #chain = template| llm
+        #res=chain.invoke(input=formatted_input)
+        #return res
+    return chain
+
+def generate_spec_from_code(pipeline):
+
+    #with open ('C:/Users/196311/Documents/GenAI/Input/azure-pipelines.yml','r') as file:
+      #pipeline = yaml.safe_load(file)
+    
+    pipeline_str= yaml.dump(pipeline,default_flow_style=False)
+    with open ('C:/Users/196311/Documents/GenAI/Examples/fewShot_A2S_examples.json','r') as f:
+      few_shot_examples = json.load(f)
+   
+
+    #Create embeddings for each stage
+    pipeline_stages,additional_attributes=extract_stages(pipeline)
+    #Generate embeddings for each stage description and use stage name as key
+    stage_descriptions = {stage["stage"]:yaml.dump(stage) for stage in pipeline_stages}
+    #stage_embeddings = {stage_name: get_embeddings(description) for stage_name,description in stage.description.items()}
+    stage_embeddings = {stage_name:get_embeddings(description) for stage_name,description in stage_descriptions.items()}
+    
+
+    #Generate embeddings for FewShot examples
+    example_embeddings = [get_embeddings(example["example_input"]) for example in few_shot_examples]
+
+    #Create and Populate Faiss Index
+    dimension = example_embeddings[0].shape[0]
+    index = faiss.IndexFlatL2(dimension)
+    embedding_matrix = np.array(example_embeddings).reshape(-1,dimension)
+    index.add(embedding_matrix)
+
+    #Save example inputs for mapping results
+    example_inputs = [example["example_input"] for example in few_shot_examples]
+
+    #Combine all stages descriptions into a single input
+    combined_stage_descriptions="\n".join(stage_descriptions.values())
+
+    #Query the FAISS index using the combined stage descriptions
+    relevant_examples = query_faiss_index(few_shot_examples,index,combined_stage_descriptions)
+    model_path='C:/Users/196311/Documents/GenAI/Models/llama-3.1-8b.gguf'
+    chain=create_chain(relevant_examples,model_path)
+    #Generate specification using the chain
+    specification_str = chain(combined_stage_descriptions)
+
+
+    specification = json.loads(specification_str)
+    #wrap the specification list in a dictionary
+    wrapped_specification = {
+        "stages": specification
+    }
+    #Add additional attributes to the specification
+    additional_attributes.update(wrapped_specification)
+    #final_specification = {**additional_attributes,**specification}
+    return specification
+   
+#with open ('C:/Users/196311/Documents/GenAI/Input/azure-pipelines.yml','r') as file:
+  #pipeline = yaml.safe_load(file)
+
+#final_spec = generate_spec_from_code(pipeline)
+#Create a tool instance
+pipeline_tool = Tool(name="Spec Generator",func=generate_spec_from_code,description = "Generate pipeline specification from an Azure YAML")
+
+def create_new_memory_retriever1(model_name='bert-base-uncased'):
+    # Load pre-trained BERT model and tokenizer
+    tokenizer = AutoTokenizer.from_pretrained("C:/Users/196311/Documents/GenAI/Models/all-MiniLM-L6-v2")
+    model = AutoModel.from_pretrained("C:/Users/196311/Documents/GenAI/Models/all-MiniLM-L6-v2")
+    
+    # Initialize FAISS index
+    dimension = model.config.hidden_size
+    index = faiss.IndexFlatL2(dimension)
+    
+    # Memory data structure
+    memory_data = []
+
+    # Function to generate embeddings
+    def generate_embeddings(text):
+        inputs = tokenizer(text, return_tensors='pt', truncation=True, padding=True)
+        with torch.no_grad():
+            outputs = model(**inputs)
+        return outputs.last_hidden_state.mean(dim=1).numpy()
+
+    # Function to add memory
+    def add_memory(text):
+        embedding = generate_embeddings(text)
+        index.add(embedding)
+        memory_data.append(text)
+
+    # Function to retrieve memory
+    def retrieve_memory(query, k=3):
+        query_embedding = generate_embeddings(query)
+        distances, indices = index.search(query_embedding, k)
+        results = [memory_data[i] for i in indices[0]]
+        return results
+
+    # Return the retriever functions
+    return add_memory, retrieve_memory
+
+def create_new_memory_retriever():
+    """Create a new vector store retriever unique to the agent."""
+    # Define your embedding model
+    #embeddings_model = OpenAIEmbeddings()
+    embeddings_model = HuggingFaceEmbeddings(model_name="C:/Users/196311/Documents/GenAI/Models/all-MiniLM-L6-v2")
+    # Initialize the vectorstore as empty
+    embedding_size = 384
+    index = faiss.IndexFlatL2(embedding_size)
+    vectorstore = FAISS(
+        embeddings_model.embed_query,
+        index,
+        InMemoryDocstore({}),
+        {},
+           )
+    return TimeWeightedVectorStoreRetriever(
+        vectorstore=vectorstore, other_score_keys=["importance"], k=15
+    )
+
+
+# Create the memory retriever
+retrieve_memory = create_new_memory_retriever()
+
+#Create the agent
+tools = [pipeline_tool]
+model_path='C:/Users/196311/Documents/GenAI/Models/llama-3.1-8b.gguf'
+# Initialize the LlamaCpp model  
+llm = LlamaCpp(
+        model_path=model_path,
+        temperature=0.1,
+        max_tokens=20000,
+        top_p=1,
+        n_ctx=10240,
+        f16_kv=True,
+        verbose=False )  
+pipeline_agent_memory = GenerativeAgentMemory(
+    llm=llm,
+    memory_retriever=retrieve_memory,
+    verbose=False,
+    reflection_threshold=8,  
+)
+pipeline_agent = GenerativeAgent(
+    name = "Pipeline Agent",
+    llm = llm,
+    tools = [pipeline_tool],
+    description = "Generate PIpeline Specification",
+    status = "spec generation",
+    max_tokens= 150,
+    temparature = 0.7,
+    top_p=0.9,
+    memory_retriever=create_new_memory_retriever(),
+    frequency_penalty=0.5,
+    presence_penalty=0.6,
+    memory= pipeline_agent_memory
+
+)
+
+def pipeline_agent_summarize(description):
+    # Simulate summarizing the number of stages and tools used
+    summary = f"Pipeline Agent: Based on the source pipeline, there are 3 stages and the tools used are X, Y, and Z. Please verify."
+    return summary
+
+def pipeline_agent_create_spec(pipeline):
+    # Simulate creating the specification
+    spec= generate_spec_from_code(pipeline)
+    spec_list=["Pipeline Agent: Created the pipeline specification.Please verify.", str(spec)]
+    final_spec="\n".join(spec_list)
+    print("final_spec ", final_spec)
+    return final_spec
+
+def pipeline_agent_finalize_spec():
+    # Simulate finalizing the specification
+    final_spec = "\n Pipeline Agent: Finalized the pipeline specification."
+    return final_spec
+
+def devops_agent_provide_description():
+    
+    # Simulate providing a description of the source pipeline
+    #description = "DevOps Agent: The source pipeline includes stages A, B, and C with tools X, Y, and Z."
+    with open ('C:/Users/196311/Documents/GenAI/Input/azure-pipelines.yml','r') as file:
+      pipeline = yaml.safe_load(file)
+    #description="Create specification from following pipeline\n", pipeline
+    return pipeline
+
+def devops_agent_verify_summary(summary):
+    # Simulate verifying the summary
+    verification = "DevOps Engineer Agent: The summary is correct. No changes required."
+    return verification
+
+def devops_agent_verify_spec(spec):
+    # Simulate verifying the specification
+    verification = "DevOpsEngineer Agent: The specification is verified. No changes required."
+    return verification
+
+
+devops_agent_memory = GenerativeAgentMemory(
+    llm=llm,
+    memory_retriever=retrieve_memory,
+    verbose=False,
+    reflection_threshold=8,  
+)
+
+#Create a tool instance
+verify_spec_tool = Tool(name="DevOps Engineer",func=devops_agent_verify_spec,description = "Verify pipeline specification")
+
+# Define the DevOps Agent
+DevOps_agent = GenerativeAgent(
+    name="DevOps Agent",
+    llm=llm,
+    tools=[devops_agent_provide_description,verify_spec_tool],
+    description="Handle DevOps tasks",
+    status="DevOps task handling",
+    max_tokens=150,
+    temperature=0.7,
+    top_p=0.9,
+    memory_retriever=create_new_memory_retriever(),
+    frequency_penalty=0.5,
+    presence_penalty=0.6,
+    memory=devops_agent_memory
+)
+
+
+# Define the conversation flow
+def conversation_flow():
+    conversation = []
+
+    #DevOps Agent provides the description of the source pipeline
+    pipeline = devops_agent_provide_description()
+    description_list=["DevOps Engineer Agent: Create specification from following pipeline", str(pipeline)]
+    description ="\n".join(description_list)
+    conversation.append(description)
+ 
+
+    # Pipeline Agent summarizes the stages and tools used
+    #summary = pipeline_agent_summarize(description)
+    #conversation.append(summary)
+
+    # DevOps Agent verifies the summary
+    #summary_verification = devops_agent_verify_summary(summary)
+    #conversation.append(summary_verification)
+
+    # Pipeline Agent creates the specification
+    spec = pipeline_agent_create_spec(pipeline)
+    conversation.append(spec)
+
+    # DevOps Agent verifies the specification
+    spec_verification = devops_agent_verify_spec(spec)
+    conversation.append(spec_verification)
+
+    # Pipeline Agent finalizes the specification
+    final_spec = pipeline_agent_finalize_spec()
+    conversation.append(final_spec)
+
+    return conversation
+
+# Execute the conversation flow
+conversation_history = conversation_flow()
+
+# Print the conversation
+with open("response-spec.txt","w") as file:
+  for message in conversation_history:
+    print(message)
+    file.write(str(message))
+    file.write("\n")
+       
+print("Conversation is written into the file")
+
+

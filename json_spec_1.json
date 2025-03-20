@@ -1,0 +1,45 @@
+[
+    {
+        "trigger": [
+            "main"
+        ],
+        "pool": {
+            "name": "MOBAgent"
+        },
+        "stages": [
+            {
+                "stage": "Build with Maven",
+                "steps": [
+                    {
+                        "task": "Maven",
+                        "inputs": {
+                            "mavenPomFile": "pom.xml",
+                            "goals": "clean install",
+                            "publishJUnitResults": true,
+                            "testResultsFiles": "**/surefire-reports/TEST-*.xml",
+                            "javaHomeOption": "JDKVersion",
+                            "jdkVersionOption": "1.8",
+                            "mavenVersionOption": "Default",
+                            "mavenOptions": "-Xmx1024m",
+                            "sonarQubeRunAnalysis": false
+                        },
+                        "displayName": "Build with Maven"
+                    }
+                ]
+            },
+            {
+                "stage": "Publish Artifacts",
+                "steps": [
+                    {
+                        "task": "PublishBuildArtifacts",
+                        "inputs": {
+                            "pathToPublish": "$(Build.SourcesDirectory)/target",
+                            "artifactName": "drop"
+                        },
+                        "displayName": "Publish Artifacts"
+                    }
+                ]
+            }
+        ]
+    }
+]

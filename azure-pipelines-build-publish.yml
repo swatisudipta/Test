@@ -1,0 +1,25 @@
+trigger:
+  - trigger
+
+pool:
+  name: MOBAgent
+
+steps:
+  - task: Maven@3
+    displayName: 'Build with Maven'
+    inputs:
+      mavenPomFile: 'pom.xml'
+      goals: 'clean install'
+      publishJUnitResults: true
+      testResultsFiles: '**/surefire-reports/TEST-*.xml'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.8'
+      mavenVersionOption: 'Default'
+      mavenOptions: '-Xmx1024m'
+      sonarQubeRunAnalysis: false
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Artifacts'
+    inputs:
+      pathToPublish: '$(Build.SourcesDirectory)/target'
+      artifactName: 'drop'

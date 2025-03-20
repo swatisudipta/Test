@@ -1,0 +1,19 @@
+[
+    {
+        "stages": [
+            {
+                "stage": "Maven Build",
+                "steps": [
+                    {
+                        "task": "Maven",
+                        "inputs": {
+                            "mavenPomFile": "pom.xml",
+                            "goals": "clean install"
+                        },
+                        "displayName": "MavenBuild"
+                    }
+                ]
+            }
+        ]
+    }
+]

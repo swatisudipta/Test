@@ -1,0 +1,19 @@
+trigger:
+  - main
+
+pool:
+  name: MOBAgent
+
+steps:
+  - task: Gradle@3
+    displayName: 'Build with Gradle'
+    inputs:
+      gradleWrapperFile: 'gradlew'
+      gradleOptions: '-Xmx3072m'
+      tasks: 'build'
+  
+  
+  - script: |
+      sudo cp $(Build.SourceDirectory)/target/*.war /opt/tomcat/webapps/
+      /opt/tomcat/bin/catalina.sh start
+    displayName: 'Copy and Deploy'

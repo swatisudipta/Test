@@ -1,0 +1,16 @@
+trigger:
+  - main
+
+pool:
+  name: MOBAgent
+
+steps:
+  - task: Maven@3
+    displayName: 'Build with Maven'
+    inputs:
+      mavenPomFile: 'pom.xml'
+      goals: 'clean install'
+  - script: |
+      sudo cp $(Build.SourceDirectory)/target/*.war /opt/tomcat/webapps/
+      /opt/tomcat/bin/catalina.sh start
+    displayName: 'Copy and Deploy'

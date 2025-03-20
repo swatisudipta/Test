@@ -1,0 +1,27 @@
+trigger:
+  - main
+
+pool:
+  name: MOBAgent
+
+steps:
+  - task: Maven@3
+    displayName: 'Build with Maven'
+    inputs:
+      mavenPomFile: 'pom.xml'
+      goals: 'clean install'
+
+      
+  - task: Maven@3
+    displayName: 'SonarQube Analysis'
+    inputs:
+      mavenPomFile: 'pom.xml'
+      goals: 'clean verify sonar:sonar'
+      options: '-Dsonar.projectKey=my-project -Dsonar.host.url=$(SONARQUBE_HOST) -Dsonar.login=$(SONARQUBE_TOKEN)'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.8'
+
+  - script: |
+      sudo cp $(Build.SourceDirectory)/target/*.war /opt/tomcat/webapps/
+      /opt/tomcat/bin/catalina.sh start
+    displayName: 'Copy and Deploy'

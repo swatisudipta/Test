@@ -1,0 +1,15 @@
+trigger:
+  - main
+
+pool:
+  name: MOBAgent
+
+steps:
+  - task: Docker@2
+    inputs:
+      command: 'buildAndPush'
+      repository: 'acr_demo'
+      dockerfile: 'Dockerfile'
+      containerRegistry: 'demo_container_registry'
+      tags: 'latest'
+    displayName: 'Build & Push Docker Image'

@@ -1,0 +1,43 @@
+[
+    {
+        "trigger": [
+            "main"
+        ],
+        "pool": {
+            "name": "MOBAgent"
+        },
+        "stages": [
+            {
+                "stage": "Login to ACR",
+                "steps": [
+                    {
+                        "task": "Docker",
+                        "inputs": {
+                            "command": "login",
+                            "containerRegistry": "CAAASServCon"
+                        },
+                        "displayName": "Login to ACR"
+                    }
+                ]
+            },
+            {
+                "stage": "Build and Push",
+                "steps": [
+                    {
+                        "script": "docker build -t demodevopsregistry.azurecr.io/caaas:latest .\ndocker push demodevopsregistry.azurecr.io/caaas:latest",
+                        "displayName": "Build and Push"
+                    }
+                ]
+            },
+            {
+                "stage": "Pull Latest Image",
+                "steps": [
+                    {
+                        "script": "docker pull demodevopsregistry.azurecr.io/caaas:latest",
+                        "displayName": "Pull Latest Image"
+                    }
+                ]
+            }
+        ]
+    }
+]

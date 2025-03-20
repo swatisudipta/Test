@@ -1,0 +1,22 @@
+trigger:
+- main
+
+pool:
+  name: any
+  
+stages:
+- stage: Checkout
+  jobs:
+  - job: Checkout_Repo
+    steps:
+    - checkout: self
+
+- stage: Build
+  jobs:
+  - job: Build_Application
+    steps:
+    - task: Maven@3
+      inputs:
+        mavenPomFile: 'pom.xml'
+        goals: 'clean install'
+      displayName: 'Maven Build'

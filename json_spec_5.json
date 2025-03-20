@@ -1,0 +1,15 @@
+[
+    {
+        "stages": [
+            {
+                "stage": "Docker Build and Push",
+                "steps": [
+                    {
+                        "script": "docker build -t demodevopsregistry.azurecr.io/zenmasterintelligence:latest .\ndocker push demodevopsregistry.azurecr.io/zenmasterintelligence:lates",
+                        "displayName": "Docker Build and Push"
+                    }
+                ]
+            }
+        ]
+    }
+]

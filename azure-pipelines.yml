@@ -1,0 +1,20 @@
+trigger: main
+pool:
+  name: MOBAgent
+jobs:
+  - job: BuildJob
+    displayName: Build Job
+    steps:
+      - task: Maven@3
+        displayName: Build with Maven
+        inputs:
+          mavenPomFile: pom.xml
+          goals: clean install
+  - job: PublishJob
+    displayName: Publish Job
+    steps:
+      - task: PublishBuildArtifacts@1
+        displayName: Publish Artifacts
+        inputs:
+          pathToPublish: $(Build.SourcesDirectory)/target
+          artifactName: drop

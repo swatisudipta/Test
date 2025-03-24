@@ -1,0 +1,48 @@
+import streamlit as st
+import os
+import time
+from SourcetoSpecAgent import initiate_conversation
+from SourcetoSpecAgent import pipeline_agent_create_spec
+import json
+
+# Function to handle conversion (Replace this with actual model call)
+#def Source_to_spec(yaml_content):
+    #time.sleep(2) # Simulating processing time
+#    return f"# Jenkinsfile Generated\n\npipeline {{\n agent any\n stages {{\n stage('Example') {{\n steps {{\n echo 'Converted from YAML'\n }}\n }}\n }}\n}}"
+
+if 'conversation' not in st.session_state:
+    st.session_state.conversation=[]
+
+def add_message_to_conversation(message):
+  st.session_state.conversation.append(message)
+
+# Streamlit UI
+st.title("DevOps Pipeline Converter")
+
+st.sidebar.header("Settings")
+input_tech = st.sidebar.selectbox("Input Tech", ["Azure YAML"], index=0)
+output_tech = st.sidebar.selectbox("Output Tech", ["Specification"], index=0)
+
+st.write("### Upload your YAML file:")
+uploaded_file = st.file_uploader("Choose a YAML file", type=["yaml", "yml"])
+
+if uploaded_file is not None:
+    yaml_content = uploaded_file.getvalue().decode("utf-8")
+    st.write("#### YAML Preview:")
+    st.code(yaml_content, language="yaml")
+    
+    if st.button("Initiate Conversation"):
+        st.title("Conversation:")
+        with st.spinner("Converting..."):
+            for message in initiate_conversation(yaml_content):
+              st.markdown(message)
+           
+            st.success("Conversion Complete!")
+        #Convert JSON data to a pretty-printed string
+       # output_string=json.dumps(output,indent=4)
+      
+        #st.markdown(output)
+        #for message in st.session_state.conversation:
+         #   st.markdown(message)
+
+

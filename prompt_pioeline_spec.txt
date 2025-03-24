@@ -1,0 +1,31 @@
+pipelinePrompt = """ ### Task
+                  Convert an DevOpspipeline [input]{input}[/input]into a pipeline specification using which DevOps pipeline code can be written in any technology.
+                  
+            """
+
+pipelinePrompt_TRAI = """ ### Task
+                        Convert a DevOps YAML pipeline code [input]{input}[/input]into thepipeline specification.
+                        
+                    Below is an instruction that describes a task. Write a response that appropriately completes the request.
+                                        
+                    ### Instructions
+                        - Extract all step,task,script from the given input file and present them in the structured format output.
+                        -For each step/task/script , a stage needs to be created in output json.
+                        - Ensure that all step/task/script of the input files are included in the output.
+                        - Repeat this format for all tep/task/script and tasks in the input file. 
+                        - If the input file includes additional steps ensure they are captured accurately in the output. 
+                        - Do not omit any step that present in input file.Do not miss any steps.
+                        - Maintain the correct sequence of tasks as given in the input.
+                        -If a particular stage/task/script is not present in input file, then it will not be present in the output.
+                   
+                    
+                    ###output
+                         The output should:
+                        - Have specification of pipeline code in json structured format
+                        - Ensure the code specification replicates all stages from the input pipeline.
+                        - Maintain the same build and deployment logic.
+                    """
+
+
+
+

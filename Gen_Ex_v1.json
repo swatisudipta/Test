@@ -1,0 +1,33 @@
+[
+    {
+        "Stage": "Build" ,
+        "Tool": "Maven",
+        "Specification": "        \"stages\": [\n            {{\n                \"name\": \"Build\",\n                \"tasks\": [\n                    {{\n                        \"name\": \"Build\",\n                        \"tool\": \"Maven\",\n                        \"version\": 3,\n                        \"reference\": \"pom.xml\",\n                        \"programmingLanguage\": \"Java 8\",\n                        \"script\": \"mvn clean install\",\n                        \"testTool\": \"JUnit\"\n                            }}\n                ]\n            }}"
+    },
+    {
+      "Stage": "Build",
+      "Tool": "Gradle",
+      "Specification": "          \"stages\": [\n            {{\n                \"name\": \"Build\",\n                \"tasks\": [\n                    {{\n                        \"name\": \"Build\",\n                        \"tool\": \"Gradle\",\n                        \"version\": 8.0,\n                        \"reference\": \"build.gradle\",\n                        \"programmingLanguage\": \"Java 8\",\n                        \"script\": \"gradlew clean build\",\n                        \"testTool\": \"JUnit\"\n                     }}\n                ]\n            }}"
+    },
+    {
+      "Stage": "Deploy",
+      "Tool": "Tomcat",
+      "Specification": "         \"stages\": [\n            {{\n                \"name\": \"Deploy\",\n                \"tasks\": [\n                    {{\n                        \"name\": \"Deploy\",\n                        \"tool\": \"Tomcat\",\n                        \"version\": 10.1,\n                        \"reference\": \"target/my-app.war\",\n        \"serverUrl\":\"http://localhost:8080\" ,\n    \"contextPath\":/my-app\",\n    \"username\":\"admin\",\n      \"admin123\",\n        \"deployCommand\":\"curl -u admin:admin123 -T target/my-app.war  http://localhost:8080/manager/text/deploy?path=/my-app\"\n                 }}\n       ]\n      }}"                      
+    },
+    {
+      "Stage": "Build",
+      "Tool": "Docker",
+      "Specification":  "        \"stages\": [\n            {{\n                \"name\": \"Build\",\n                \"tasks\": [\n                    {{\n                        \"name\": \"Build\",\n                        \"tool\": \"Docker\",\n                        \"version\": 24.0,\n                        \"reference\": \"Dockerfile\",\n        \"context\":\".\",\n         \"imageName\":\"my-app:latest\",\n       \"buildCommand\":\"docker build -t my-app:latest .\"\n                             }}\n        ]\n      }}"  
+    },
+    {
+      "Stage": "Analysis",
+      "Tool": "SonarQube",
+      "Specification": "        \"stages\": [\n            {{\n                \"name\": \"Analysis\",\n                \"tasks\": [\n                    {{\n                        \"name\": \"Analysis\",\n                        \"tool\": \"SonarQube\",\n                        \"version\":\"2025.1 LTA\",\n                        \"reference\": \"sonar-project.properties\",\n           \"projectKey\":\"my-project\",\n            \"serverUrl\":\"http://localhost:9000\",\n         \"token\":\"my-sonar-token\",\n          \"language\":\"Java 8\",\n               \"scanCommand\":\"sonar-scanner\"\n                                  }}\n                ]\n            }}"
+    },
+    {
+      "Stage": "Build",
+      "Tool": "Python",
+      "Specification": "         \"stages\": [\n            {{\n                \"name\": \"Build\",\n                \"tasks\": [\n                    {{\n                        \"name\": \"Build\",\n                        \"tool\": \"Python\",\n                        \"version\": \"3.11\",\n                        \"reference\": \"requirements.txt\",\n                        \"programmingLanguage\": \"Python\",\n                \"virtualEnv\":\"venv\",\n           \"setupCommand\":\"python  -m venv venv && source venv/bin/activate\",\n         \"installCommand\":\"pip install -r requirements.txt\",\n        \"testCommand\":\"pytest tests/\",\n        \"lintCommand\":\"flake8 src/\",\n        \"buildCommand\":\"python setup.py sdist bdist_wheel\",\n         \"outputDirectory\":\"dist/\"\n                             }}\n                         ]\n                 }}"
+    }
+  ]
+  

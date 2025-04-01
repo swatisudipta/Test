@@ -1,0 +1,40 @@
+import streamlit as st
+from GenCode_v12 import generate_combined_specification, extract_stages_tools
+
+st.set_page_config(page_title="CI/CD Specification Generator", layout="wide")
+
+st.markdown("<h2 style='text-align: center; color: #FE0175;'>CI/CD Pipeline Specification Generator</h2>", unsafe_allow_html=True)
+
+# Input box for user task description
+user_input = st.text_area("Enter your pipeline task description:", height=100)
+
+# Generate button
+if st.button("Generate Specification"):
+    if user_input.strip():
+        with st.spinner("Analyzing your requirements and generating specification..."):
+            # First extract stages and tools to show user
+            extracted_data = extract_stages_tools(user_input)
+            
+            # Then generate the combined specification
+            specification = generate_combined_specification(user_input)
+
+        # Display extracted Stages & Tools (optional - can remove if not needed)
+        st.subheader("Identified Pipeline Components")
+        for item in extracted_data:
+            st.write(f"**Stage:** {item['stage']}, **Tools:** {', '.join(item['tools'])}")
+        st.markdown("---")
+
+        # Display the complete generated specification
+        st.subheader("Complete Pipeline Specification")
+        st.markdown("Here's your complete CI/CD pipeline specification:")
+        st.code(specification, language='yaml')
+        
+        # Add download button
+        st.download_button(
+            label="Download Specification",
+            data=specification,
+            file_name="pipeline_specification.yml",
+            mime="text/yaml"
+        )
+    else:
+        st.warning("Please enter a pipeline task description!")

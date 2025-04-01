@@ -1,0 +1,168 @@
+from langchain.schema import Document
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
+import re
+import json
+import os
+import streamlit as st
+from langchain_community.llms import LlamaCpp
+from langchain_core.prompts import FewShotPromptTemplate, PromptTemplate
+import prompt_pipeline_spec as promptPipeline
+
+# Define known stages and tools
+stages = {
+    "build": "Build",
+    "compile": "Build",
+    "deploy": "Deploy",
+    "test": "Test",
+    "analysis": "Analysis",
+    "quality check": "Analysis",
+    "code quality check": "Analysis",
+    "static code analysis": "Analysis",
+    "push": "Push",
+    "pull": "Pull",
+    "run": "Run"
+}
+
+tools = ["Maven", "Gradle", "Jenkins", "SonarQube", "Docker", "Tomcat", "Python"]
+
+def extract_stages_tools(user_input):
+    """Extract stages and tools from user input"""
+    user_input = user_input.strip().lower()
+    stage_pattern = r"\b(" + "|".join(map(re.escape, stages.keys())) + r")\b"
+    tool_pattern = r"\b(" + "|".join(map(re.escape, [tool.lower() for tool in tools])) + r")\b"
+
+    phrases = re.split(r"\s*(?:,|\.|\band\b)\s*", user_input)
+    extracted_data = []
+    last_stage = None
+
+    for phrase in phrases:
+        stage_match = re.findall(stage_pattern, phrase)
+        tool_match = re.findall(tool_pattern, phrase)
+        stage_match = [stages[stage] for stage in stage_match]
+
+        if stage_match:
+            last_stage = stage_match[0]
+            extracted_data.append({
+                "stage": last_stage,
+                "tools": list(set(tool_match)) if tool_match else ["Unknown"]
+            })
+        elif tool_match and last_stage:
+            for item in extracted_data:
+                if item["stage"] == last_stage:
+                    item["tools"].extend(tool_match)
+                    item["tools"] = list(set(item["tools"]))
+
+    return extracted_data
+
+# Load few-shot examples
+examples_path = os.path.join('C:/Users/196311/Documents/GenAI/ReferenceCode/PipelineGenerator', 'Gen_Ex_v1.json')
+with open(examples_path, 'r') as f:
+    few_shot_examples = json.load(f)
+
+# Initialize embedding model
+embedding_model = SentenceTransformer("C:/Users/196311/Documents/GenAI/Models/all-MiniLM-L6-v2")
+
+def format_stage_tools(stage, tools):
+    return f"Stage: {stage}, Tool: {','.join(tools)}"
+
+# Create embeddings and FAISS index
+example_texts = [format_stage_tools(ex["Stage"], ex["Tool"]) for ex in few_shot_examples]
+example_embeddings = np.array([embedding_model.encode(text) for text in example_texts]).astype('float32')
+
+dimension = example_embeddings.shape[1]
+index = faiss.IndexFlatL2(dimension)
+index.add(example_embeddings)
+example_mapping = {i: few_shot_examples[i] for i in range(len(few_shot_examples))}
+
+def get_relevant_examples(stage_tools_data):
+    """Get relevant examples for all stages and tools together"""
+    relevant_examples = []
+    
+    for item in stage_tools_data:
+        stage = item['stage']
+        tools = item['tools']
+        
+        for tool in tools:
+            try:
+                examples = query_faiss_index(stage, tool, k=1)
+                relevant_examples.extend(examples)
+            except Exception as e:
+                print(f"Error getting examples for {stage} with {tool}: {str(e)}")
+    
+    return relevant_examples
+
+def query_faiss_index(stage, tool, k=1):
+    query_text = format_stage_tools(stage, tool)
+    query_embedding = embedding_model.encode(query_text).astype('float32').reshape(1, -1)
+    distances, indices = index.search(query_embedding, k)
+    return [example_mapping[i] for i in indices[0]]
+
+def create_combined_chain(relevant_examples, model_path):
+    """Create a chain that generates a single specification for all stages/tools"""
+    formatted_examples = [
+        {
+            "Stage": example["Stage"],
+            "Tool": example["Tool"],
+            "Specification": json.dumps(example["Specification"]) if isinstance(example["Specification"], dict) else example["Specification"]
+        } 
+        for example in relevant_examples
+    ]
+
+    example_prompt = PromptTemplate(
+        input_variables=["Stage", "Tool", "Specification"],
+        template="Stage: {Stage}\nTool: {Tool}\nSpecification: {Specification}"
+    )
+
+    template = FewShotPromptTemplate(
+        examples=formatted_examples[:3],  # Use max 3 most relevant examples
+        example_prompt=example_prompt,
+        prefix=promptPipeline.pipelinePrompt_TRAI,
+        suffix="\n\nGenerate a complete pipeline specification that combines all these stages and tools:\n{input_description}\n\nComplete Specification:",
+        input_variables=["input_description"],
+        example_separator="\n---\n"
+    )
+
+    llm = LlamaCpp(
+        model_path=model_path,
+        temperature=0.3,
+        max_tokens=1000,  # Increased for longer output
+        top_p=0.9,
+        n_ctx=4096,
+        f16_kv=True,
+        verbose=False
+    )
+
+    def chain(input_description):
+        prompt = template.format(input_description=input_description)
+        response = llm(prompt)
+        return response.strip()
+
+    return chain
+
+def generate_combined_specification(user_input):
+    """Generate a single combined specification for all stages and tools"""
+    # Extract stages and tools
+    stage_tools_data = extract_stages_tools(user_input)
+    
+    # Get relevant examples
+    relevant_examples = get_relevant_examples(stage_tools_data)
+    
+    # Create input description for all stages/tools
+    input_description = "\n".join([
+        f"Stage: {item['stage']}, Tools: {', '.join(item['tools'])}"
+        for item in stage_tools_data
+    ])
+    
+    # Generate specification
+    model_path = 'C:/Users/196311/Documents/GenAI/Models/llama-3.1-8b.gguf'
+    chain = create_combined_chain(relevant_examples, model_path)
+    
+    try:
+        specification = chain(input_description)
+        return specification
+    except Exception as e:
+        return f"Error generating specification: {str(e)}"

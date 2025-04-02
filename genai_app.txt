@@ -1,0 +1,74 @@
+import streamlit as st
+import os
+import time
+import json
+#from test import generate_combined_specification, extract_stages_tools
+#from test import initiate_conversation, pipeline_agent_create_spec
+from GenSpec import generate_combined_specification, extract_stages_tools
+from SourceToSpecAgent import initiate_conversation, pipeline_agent_create_spec
+
+# Set page configuration
+st.set_page_config(page_title="GenAI Framework", layout="wide")
+
+# Main Heading
+st.markdown("<h1 style='text-align: center; color: #FE0175;'>GenAI Framework</h1>", unsafe_allow_html=True)
+
+# Create tabs
+tab1, tab2 = st.tabs(["Code Converter", "Code Generator"])
+
+# Code Converter Tab
+with tab1:
+    st.header("DevOps Pipeline Converter")
+    
+    # Move the tech selectors inside the tab
+    col1, col2 = st.columns(2)
+    with col1:
+        input_tech = st.selectbox("Input Tech", ["Azure YAML"], index=0)
+    with col2:
+        output_tech = st.selectbox("Output Tech", ["Specification"], index=0)
+    
+    st.write("### Upload your YAML file:")
+    uploaded_file = st.file_uploader("Choose a YAML file", type=["yaml", "yml"])
+    
+    if uploaded_file is not None:
+        yaml_content = uploaded_file.getvalue().decode("utf-8")
+        st.write("#### YAML Preview:")
+        st.code(yaml_content, language="yaml")
+        
+        if st.button("Initiate Conversation"):
+            st.title("Conversation:")
+            with st.spinner("Converting..."):
+                for message in initiate_conversation(yaml_content):
+                    st.markdown(message)
+            st.success("Conversion Complete!")
+
+# Code Generator Tab
+with tab2:
+    st.header("CI/CD Pipeline Specification Generator")
+    
+    # Input box for user task description
+    user_input = st.text_area("Enter your pipeline task description:", height=100)
+    
+    # Generate button
+    if st.button("Generate Specification"):
+        if user_input.strip():
+            with st.spinner("Analyzing your requirements and generating specification..."):
+                extracted_data = extract_stages_tools(user_input)
+                specification = generate_combined_specification(user_input)
+            
+            st.subheader("Identified Pipeline Components")
+            for item in extracted_data:
+                st.write(f"**Stage:** {item['stage']}, **Tools:** {', '.join(item['tools'])}")
+            st.markdown("---")
+            
+            st.subheader("Complete Pipeline Specification")
+            st.code(specification, language='yaml')
+            
+            st.download_button(
+                label="Download Specification",
+                data=specification,
+                file_name="pipeline_specification.yml",
+                mime="text/yaml"
+            )
+        else:
+            st.warning("Please enter a pipeline task description!")

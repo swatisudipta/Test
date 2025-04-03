@@ -2,39 +2,83 @@ import streamlit as st
 import os
 import time
 import json
-#from test import generate_combined_specification, extract_stages_tools
-#from test import initiate_conversation, pipeline_agent_create_spec
-from GenSpec import generate_combined_specification, extract_stages_tools
-from SourceToSpecAgent import initiate_conversation, pipeline_agent_create_spec
+from test import generate_combined_specification, extract_stages_tools, code_generator
+from test import initiate_conversation, pipeline_agent_create_spec
+#mfrom GenSpec import generate_combined_specification
+#from ExtractStages import extract_stages_tools
+#from SourceToSpecAgent import initiate_conversation, pipeline_agent_create_spec
 
 # Set page configuration
-st.set_page_config(page_title="GenAI Framework", layout="wide")
+st.set_page_config(page_title="NextGen Devops Platform", layout="wide")
 
 # Main Heading
-st.markdown("<h1 style='text-align: center; color: #FE0175;'>GenAI Framework</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #FE0175;'>NextGen DevOps Platform</h1>", unsafe_allow_html=True)
 
 # Create tabs
-tab1, tab2 = st.tabs(["Code Converter", "Code Generator"])
+tab1, tab2 = st.tabs(["Pipeline Code Generator", "Pipeline Code Converter"])
+
+# Status indicator CSS (simplified)
+st.markdown("""
+<style>
+.step-container {
+    display: flex;
+    margin-bottom: 1rem;
+}
+.step {
+    display: flex;
+    align-items: center;
+}
+.step-number {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+    font-weight: bold;
+    font-size: 12px;
+}
+.step.active .step-number {
+    background: #FE0175;
+    color: white;
+}
+.step.completed .step-number {
+    background: #28a745;
+    color: white;
+}
+.step-label {
+    margin-right: 15px;
+}
+/* Narrower text area */
+.narrow-textarea .stTextArea textarea {
+    width: 600px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 
 # Code Converter Tab
-with tab1:
+with tab2:
     st.header("DevOps Pipeline Converter")
-    
+   
     # Move the tech selectors inside the tab
     col1, col2 = st.columns(2)
     with col1:
         input_tech = st.selectbox("Input Tech", ["Azure YAML"], index=0)
     with col2:
         output_tech = st.selectbox("Output Tech", ["Specification"], index=0)
-    
+   
     st.write("### Upload your YAML file:")
     uploaded_file = st.file_uploader("Choose a YAML file", type=["yaml", "yml"])
-    
+   
     if uploaded_file is not None:
         yaml_content = uploaded_file.getvalue().decode("utf-8")
         st.write("#### YAML Preview:")
         st.code(yaml_content, language="yaml")
-        
+       
         if st.button("Initiate Conversation"):
             st.title("Conversation:")
             with st.spinner("Converting..."):
@@ -43,32 +87,96 @@ with tab1:
             st.success("Conversion Complete!")
 
 # Code Generator Tab
-with tab2:
-    st.header("CI/CD Pipeline Specification Generator")
+with tab1:
+    st.header("DevOps Pipeline Generator")
     
-    # Input box for user task description
-    user_input = st.text_area("Enter your pipeline task description:", height=100)
+    # Simple status indicator
+    st.markdown("""
+    <div class="step-container">
+        <div class="step {}">
+            <div class="step-number">1</div>
+            <div class="step-label">Extract Components</div>
+        </div>
+        <div class="step {}">
+            <div class="step-number">2</div>
+            <div class="step-label">Create Specification</div>
+        </div>
+        <div class="step {}">
+            <div class="step-number">3</div>
+            <div class="step-label">Generate Code</div>
+        </div>
+    </div>
+    """.format(
+        "completed" if st.session_state.get('extracted_data') else "active",
+        "completed" if st.session_state.get('specification') else ("active" if st.session_state.get('extracted_data') else ""),
+        "completed" if st.session_state.get('pipeline_code') else ("active" if st.session_state.get('specification') else "")
+    ), unsafe_allow_html=True)
     
-    # Generate button
-    if st.button("Generate Specification"):
+    col1, col2 = st.columns([6,6])
+    with col1:
+        # Input box for user task description
+        user_input = st.text_area("Enter your pipeline task description:", height=100)
+        # Document upload area
+        uploaded_file = st.file_uploader("Select your file:", type=["pdf", "docs"]) 
+
+    # Initialize session state variables
+    if 'extracted_data' not in st.session_state:
+        st.session_state.extracted_data = None
+    if 'specification' not in st.session_state:
+        st.session_state.specification = None
+    if 'pipeline_code' not in st.session_state:
+        st.session_state.pipeline_code = None
+    
+    # Step 1: Extract Stages and Tools
+    if st.button("1. Extract Stages and Tools"):
         if user_input.strip():
-            with st.spinner("Analyzing your requirements and generating specification..."):
-                extracted_data = extract_stages_tools(user_input)
-                specification = generate_combined_specification(user_input)
-            
-            st.subheader("Identified Pipeline Components")
-            for item in extracted_data:
-                st.write(f"**Stage:** {item['stage']}, **Tools:** {', '.join(item['tools'])}")
-            st.markdown("---")
-            
-            st.subheader("Complete Pipeline Specification")
-            st.code(specification, language='yaml')
-            
-            st.download_button(
-                label="Download Specification",
-                data=specification,
-                file_name="pipeline_specification.yml",
-                mime="text/yaml"
-            )
+            with st.spinner("Analyzing requirements..."):
+                st.session_state.extracted_data = extract_stages_tools(user_input)
+                st.session_state.specification = None  # Reset subsequent steps
+                st.session_state.pipeline_code = None
+                st.success("Components extracted!")
+                st.experimental_rerun()  # Refresh to update status
         else:
-            st.warning("Please enter a pipeline task description!")
+            st.warning("Please enter your pipeline requirements!")
+    
+    # Display extracted data if available
+    if st.session_state.extracted_data:
+        st.subheader("Identified Components")
+        if isinstance(st.session_state.extracted_data, list):
+            for item in st.session_state.extracted_data:
+                st.write(f"**Stage:** {item['stage']}, **Tools:** {', '.join(item['tools'])}")
+        else:
+            st.write(st.session_state.extracted_data)
+        st.markdown("---")
+        
+        # Step 2: Generate Specification
+        if st.button("2. Generate Specification"):
+            with st.spinner("Creating specification..."):
+                st.session_state.specification = generate_combined_specification(user_input)
+                st.session_state.pipeline_code = None  # Reset next step
+                st.success("Specification generated!")
+                st.experimental_rerun()
+    
+    # Display specification if available
+    if st.session_state.specification:
+        st.subheader("Pipeline Specification")
+        st.code(st.session_state.specification, language='yaml')
+        
+        # Step 3: Generate Pipeline Code (using code_generator)
+        if st.button("3. Generate Pipeline Code"):
+            with st.spinner("Generating final code..."):
+                st.session_state.pipeline_code = code_generator(st.session_state.specification)
+                st.success("Pipeline code generated!")
+                st.experimental_rerun()
+    
+    # Final output and download
+    if st.session_state.pipeline_code:
+        st.subheader("Final Pipeline Code")
+        st.code(st.session_state.pipeline_code, language='yaml')
+        
+        st.download_button(
+            label="Download Pipeline Code",
+            data=st.session_state.pipeline_code,
+            file_name="pipeline.yml",
+            mime="text/yaml"
+        )

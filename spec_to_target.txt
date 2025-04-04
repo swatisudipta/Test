@@ -1,0 +1,137 @@
+import yaml
+import json
+import faiss
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from transformers import AutoTokenizer, AutoModel
+from langchain_community.llms import LlamaCpp
+from langchain_core.prompts import PromptTemplate
+from langchain.schema.output_parser import StrOutputParser
+from langchain_community.llms import CTransformers
+from langchain_core.prompts import FewShotPromptTemplate
+import torch
+
+#Function to escape braces in JSON string
+def escape_braces(json_string):
+    return json_string.replace("{","{{").replace("}","}}")
+
+# Input pipeline specification
+with open ('C:/Users/196311/Documents/GenAI/Input/json_spec_1.json','r') as f:
+  pipeline_specification  = json.load(f)
+
+with open ('C:/Users/196311/Documents/GenAI/Examples/S2J_examples.json','r') as f:
+#with open ('C:/Users/196311/Documents/GenAI/Examples/Example.json','r') as f:
+  few_shot_examples = json.load(f)
+# Initialize the tokenizer and model for embeddings
+tokenizer= AutoTokenizer.from_pretrained("C:/Users/196311/Documents/GenAI/Models/all-MiniLM-L6-v2")
+# Load pre-trained model for embeddings
+model =  AutoModel.from_pretrained("C:/Users/196311/Documents/GenAI/Models/all-MiniLM-L6-v2")
+# Function to create embeddings for a given text
+def get_embeddings(text):
+    inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True)
+    with torch.no_grad():
+        embeddings = model(**inputs)
+    return embeddings.last_hidden_state.mean(dim=1).squeeze().numpy()
+# Create embeddings for few-shot examples
+example_embeddings = [get_embeddings(escape_braces(example["input_example"])) for example in few_shot_examples]
+
+#Create and Populate Faiss Index
+dimension = example_embeddings[0].shape[0]
+index = faiss.IndexFlatL2(dimension)
+embedding_matrix = np.array(example_embeddings).reshape(-1,dimension)
+index.add(embedding_matrix)
+
+# Convert embeddings to numpy array
+#example_embeddings_np = np.array(example_embeddings)
+# Create FAISS index
+#index = faiss.IndexFlatL2(example_embeddings_np.shape[1])
+#index.add(example_embeddings_np)
+
+# Function to perform semantic search
+def query_faiss_index(input_text, model, index, few_shot_examples, k=2):
+    input_embedding = get_embeddings(input_text)
+    distances, indices = index.search(np.array([input_embedding]), k)
+    relevant_examples = [few_shot_examples[i] for i in indices[0]]
+    return relevant_examples
+
+#Function to extract stages from the pipeline specification
+def extract_stages(pipeline_spec):
+    stages=[]
+    if (isinstance(pipeline_spec,list)):
+      for item in pipeline_spec:
+        if isinstance(item,dict) and "stages" in item:
+            stages.extend(item["stages"])
+  
+    stages_str = json.dumps(stages,indent=4)
+    print("extract stages ",stages_str)
+    return stages_str
+# Function to create the chain using FewShotTemplate and LlamaCpp
+
+def create_chain(relevant_examples, model_path,input_text,stages):
+    formatted_examples = [
+    {
+        "input_example":escape_braces(example["input_example"]),
+        "output_example":escape_braces(example["output_example"]),
+        "output_docs":(example["output_docs"] )
+    } for example in relevant_examples 
+    ]
+    
+    #Define the FewShotTemplate using the retrieved examples
+    example_prompt=PromptTemplate(template="""input_example:{input_example}\n output_example:{output_example} \n output_docs:{output_docs}""",input_variables=["input_example","stages"])
+    template= FewShotPromptTemplate(
+        examples=formatted_examples,
+        example_prompt=example_prompt,
+        prefix="Convert Pipeline specification to Jenkins file",
+        suffix="input_example:{input_example}\n output_example\n output_docs:",
+        input_variables=["input_example","stages"]
+    )  
+        # Define the FewShotTemplate using the retrieved examples
+   
+    # Initialize the LlamaCpp model  
+    llm = LlamaCpp(
+        model_path=model_path,
+        temperature=0.1,
+        max_tokens=20000,
+        top_p=1,
+        n_ctx=10240,
+        f16_kv=True,
+        verbose=False
+    )       
+    # Define the chain function
+    def chain(input_text,stages):
+        escaped_input_text = escape_braces(input_text)
+        escaped_stages_str = escape_braces(stages)
+        formatted_input = template.format(input_example=escaped_input_text,stages=escaped_stages_str)
+        return llm.invoke(formatted_input)
+        
+    return chain
+
+
+
+# Function to convert pipeline specification to Jenkins pipeline
+def convert_specification_to_jenkins(pipeline_specification, model_path, relevant_examples):
+    # Extract stages from the pipeline
+    stages= extract_stages(pipeline_specification)
+    input_text = json.dumps(pipeline_specification)
+    print("input_text ",input_text)
+    chain = create_chain(relevant_examples, model_path,input_text,stages)
+    jenkins_pipeline = chain(input_text,stages)
+    return jenkins_pipeline
+
+
+# Model path for LlamaCpp
+model_path='C:/Users/196311/Documents/GenAI/Models/llama-3.1-8b.gguf'
+#model_path='C:/Users/196311/Documents/GenAI/Models/llama-3.2-3B-Instruct.gguf'
+input_text = json.dumps(pipeline_specification,indent=4)
+# Perform semantic search to find relevant examples
+relevant_examples = query_faiss_index(input_text, model, index, few_shot_examples)
+# Convert the pipeline specification to Jenkins pipeline
+jenkins_pipeline = convert_specification_to_jenkins(pipeline_specification, model_path, relevant_examples)
+print("Jenkins Pipeline:\n", jenkins_pipeline)
+
+with open("response-jenkins.txt","w") as file:
+  file.write("Input\n\n")
+  file.write(json.dumps(pipeline_specification))
+  file.write("\n\n\nOutput\n\n")
+  file.write(jenkins_pipeline)
+print("Response is written into the file")

@@ -1,0 +1,22 @@
+[
+    {
+        "specification": "{{\"stages\":[{{\"name\":\"Build\",\"tasks\":[{{\"name\":\"Build\",\"tool\":\"Maven\",\"version\":3,\"reference\":\"pom.xml\",\"script\":\"mvn clean install\"}}]}}]}}",
+        "yaml": "steps:\n- task: Maven@3\n  inputs:\n    mavenPomFile: 'pom.xml'\n    goals: 'clean install'\n    publishJUnitResults: true\n    testResultsFiles: '**/TEST-*.xml'\n    javaHomeOption: 'JDKVersion'\n    jdkVersionOption: '1.8'"
+    },
+    {
+        "specification": "{{\"stages\":[{{\"name\":\"Deploy\",\"tasks\":[{{\"name\":\"Deploy\",\"tool\":\"Tomcat\",\"version\":10.1,\"reference\":\"target/my-app.war\",\"serverUrl\":\"http://localhost:8080\",\"deployCommand\":\"curl -u admin:admin123 -T target/my-app.war http://localhost:8080/manager/text/deploy?path=/my-app\"}}]}}]}}",
+        "yaml": "steps:\n- task: CmdLine@2\n  inputs:\n    script: 'curl -u $(tomcatUser):$(tomcatPass) -T target/my-app.war $(tomcatUrl)/manager/text/deploy?path=/my-app'\n  env:\n    tomcatUser: $(tomcatUsername)\n    tomcatPass: $(tomcatPassword)\n    tomcatUrl: $(tomcatServerUrl)"
+    },
+    {
+        "specification": "{{\"stages\":[{{\"name\":\"Build\",\"tool\":\"Docker\",\"tasks\":[{}\"name\":\"Build\",\"version\":24.0,\"reference\":\"Dockerfile\",\"buildCommand\":\"docker build -t my-app:latest .\"}}]}}]}}",
+        "yaml": "steps:\n- task: Docker@2\n  inputs:\n    containerRegistry: 'myRegistry'\n    repository: 'my-app'\n    command: 'build'\n    Dockerfile: '**/Dockerfile'\n    tags: 'latest'"
+    },
+    {
+        "specification": "{{\"stages\":[{{\"name\":\"Analysis\",\"tasks\":[{{\"name\":\"Analysis\",\"tool\":\"SonarQube\",\"version\":\"2025.1 LTA\",\"scanCommand\":\"sonar-scanner\"}}]}}]}}",
+        "yaml": "steps:\n- task: SonarQubePrepare@4\n  inputs:\n    SonarQube: 'SonarQubeConnection'\n    scannerMode: 'CLI'\n    configMode: 'manual'\n    cliProjectKey: 'my-project'\n\n- task: SonarQubeAnalyze@4\n\n- task: SonarQubePublish@4\n  inputs:\n    pollingTimeoutSec: '300'"
+    },
+    {
+        "specification": "{{\"stages\":[{{\"name\":\"Build\",\"tasks\":[{{\"name\":\"Build\",\"tool\":\"Python\",\"version\":\"3.11\",\"installCommand\":\"pip install -r requirements.txt\",\"testCommand\":\"pytest tests/\"}}]}}]}}",
+        "yaml": "steps:\n- task: UsePythonVersion@0\n  inputs:\n    versionSpec: '3.11'\n\n- script: |\n    python -m pip install -r requirements.txt\n    pytest tests/ --junitxml=test-results.xml\n  displayName: 'Install and test'\n\n- task: PublishTestResults@2\n  inputs:\n    testResultsFiles: '**/test-results.xml'\n    testRunTitle: 'Python Tests'"
+    }
+]

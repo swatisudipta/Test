@@ -1,0 +1,405 @@
+import streamlit as st
+import os
+import time
+import json
+from GenCode_v14 import extract_stages_tools
+from test import generate_combined_specification, code_generator
+from test import initiate_conversation, pipeline_agent_create_spec
+from chatbot import chatbot_instance
+#from GenSpec import generate_combined_specification
+#from ExtractStages import extract_stages_tools
+#from SourceToSpecAgent import initiate_conversation, pipeline_agent_create_spec
+
+# Set page configuration
+st.set_page_config(page_title="NextGen Devops Platform", layout="wide")
+
+# Custom CSS
+st.markdown("""
+<style>
+    /* Sidebar styling */
+    .sidebar .sidebar-content {
+        background-color: #f8f9fa;
+    }
+    .sidebar .sidebar-content .block-container {
+        padding-top: 2rem;
+    }
+    /* Narrow text area */
+    .narrow-textarea textarea {
+        max-height: 150px !important;
+    }
+    /* Step container */
+    .step-container {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+    }
+    .step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        cursor: pointer;
+    }
+    .step-number {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background-color: #ddd;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    .step-label {
+        font-size: 0.8rem;
+        text-align: center;
+    }
+    .active .step-number {
+        background-color: #FE0175;
+        color: white;
+    }
+    .completed .step-number {
+        background-color: #4CAF50;
+        color: white;
+    }
+    .disabled .step-number {
+        background-color: #f0f0f0;
+        color: #aaa;
+    }
+    /* File uploader */
+    .file-uploader {
+        margin-top: 1rem;
+        border: 2px dashed #ccc;
+        padding: 1rem;
+        border-radius: 5px;
+    }
+    /* Main content */
+    .main-content {
+        padding-left: 2rem;
+    }
+    /* Feature cards */
+    .feature-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        background-color: #f9f9f9;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Initialize session state
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "Home"
+if 'input_method' not in st.session_state:
+    st.session_state.input_method = None
+if 'user_input' not in st.session_state:
+    st.session_state.user_input = ""
+if 'extracted_data' not in st.session_state:
+    st.session_state.extracted_data = None
+if 'specification' not in st.session_state:
+    st.session_state.specification = None
+if 'pipeline_code' not in st.session_state:
+    st.session_state.pipeline_code = None
+if 'active_step' not in st.session_state:
+    st.session_state.active_step = 1
+
+# Sidebar navigation
+with st.sidebar:
+    st.markdown("# NextGen DevOps")
+    st.markdown("---")
+    
+    if st.button("🏠 Home"):
+        st.session_state.current_page = "Home"
+        st.session_state.input_method = None
+        st.rerun()
+    
+    if st.button("⚙️ Code Generator"):
+        st.session_state.current_page = "Code Generator"
+        st.rerun()
+    
+    if st.button("🔄 Code Converter"):
+        st.session_state.current_page = "Code Converter"
+        st.rerun()
+    
+    if st.button("🤖 GenAI Chatbot"):
+        st.session_state.current_page = "GenAI Chatbot"
+        st.rerun()
+    
+    st.markdown("---")
+    st.markdown("### About")
+    st.markdown("""
+    NextGen DevOps Platform simplifies pipeline creation and conversion with AI-powered tools.
+    """)
+
+# Main content area
+if st.session_state.current_page == "Home":
+    st.markdown("<h1 style='text-align: center; color: #FE0175;'>NextGen DevOps Platform</h1>", unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div style='text-align: center; margin-bottom: 2rem;'>
+        AI-powered DevOps pipeline generation and conversion platform
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        with st.container():
+            st.markdown("""
+            <div class="feature-card">
+                <h3>Code Generator</h3>
+                <p>Generate pipeline code from natural language requirements</p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    with col2:
+        with st.container():
+            st.markdown("""
+            <div class="feature-card">
+                <h3>Code Converter</h3>
+                <p>Convert between different pipeline formats and specifications</p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    with col3:
+        with st.container():
+            st.markdown("""
+            <div class="feature-card">
+                <h3>GenAI Chatbot</h3>
+                <p>Get AI assistance with your DevOps questions</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+elif st.session_state.current_page == "Code Generator":
+    st.markdown("<h1 style='color: #FE0175;'>Pipeline Code Generator</h1>", unsafe_allow_html=True)
+    
+    # Step indicator
+    st.markdown("""
+    <div class="step-container">
+        <div class="step {}" onclick="handleStepClick(1)">
+            <div class="step-number">1</div>
+            <div class="step-label">Extract Components</div>
+        </div>
+        <div class="step {}" onclick="handleStepClick(2)">
+            <div class="step-number">2</div>
+            <div class="step-label">Create Specification</div>
+        </div>
+        <div class="step {}" onclick="handleStepClick(3)">
+            <div class="step-number">3</div>
+            <div class="step-label">Generate Code</div>
+        </div>
+    </div>
+    """.format(
+        "active" if st.session_state.active_step == 1 else "completed" if st.session_state.extracted_data else "disabled",
+        "active" if st.session_state.active_step == 2 else "completed" if st.session_state.specification else "disabled",
+        "active" if st.session_state.active_step == 3 else "completed" if st.session_state.pipeline_code else "disabled"
+    ), unsafe_allow_html=True)
+    
+    # Input method selection
+    input_col1, input_col2 = st.columns(2)
+    with input_col1:
+        if st.button("✍️ Enter Text", use_container_width=True):
+            st.session_state.input_method = "text"
+            st.session_state.user_input = ""
+            st.session_state.extracted_data = None
+            st.session_state.specification = None
+            st.session_state.pipeline_code = None
+            st.session_state.active_step = 1
+            st.rerun()
+    
+    with input_col2:
+        if st.button("📁 Upload File", use_container_width=True):
+            st.session_state.input_method = "file"
+            st.session_state.user_input = ""
+            st.session_state.extracted_data = None
+            st.session_state.specification = None
+            st.session_state.pipeline_code = None
+            st.session_state.active_step = 1
+            st.rerun()
+    
+    # Text input area (shown when text input method is selected)
+    if st.session_state.input_method == "text":
+        st.markdown('<div class="narrow-textarea">', unsafe_allow_html=True)
+
+        text_area_key = f"pipeline_input_text_{st.session_state.get('text_reset_counter', 0)}"
+        
+        def on_text_change():
+            if st.session_state.get(text_area_key, "") == "":
+                st.session_state.text_reset_counter = st.session_state.get('text_reset_counter', 0) + 1
+                st.session_state.user_input = ""
+                st.session_state.extracted_data = None
+                st.session_state.specification = None
+                st.session_state.pipeline_code = None
+                st.session_state.active_step = 1
+                st.rerun()
+
+        user_input = st.text_area(
+            "Enter your pipeline requirements:",
+            height=150,
+            placeholder="Describe your pipeline requirements in detail...",
+            value=st.session_state.user_input,
+            key=text_area_key,
+            on_change=on_text_change
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if user_input and user_input!= st.session_state.user_input:
+            st.session_state.user_input = user_input
+            st.session_state.extracted_data = None
+            st.session_state.specification = None
+            st.session_state.pipeline_code = None
+            st.session_state.active_step = 1
+            st.rerun()
+    
+    # File upload area (shown when file input method is selected)
+    elif st.session_state.input_method == "file":
+        st.markdown('<div class="file-uploader">', unsafe_allow_html=True)
+        uploaded_file = st.file_uploader(
+            "Upload requirements document",
+            type=["txt", "md"],
+            key="pipeline_input_file"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if uploaded_file is not None:
+            file_content = uploaded_file.getvalue().decode("utf-8")
+            if file_content != st.session_state.user_input:
+                st.session_state.user_input = file_content
+                st.session_state.extracted_data = None
+                st.session_state.specification = None
+                st.session_state.pipeline_code = None
+                st.session_state.active_step = 1
+                st.rerun()
+    
+    # Process steps based on current active step
+    if st.session_state.user_input:
+        # Step 1: Extract Stages and Tools
+        if st.session_state.active_step >= 1 and not st.session_state.extracted_data:
+            if st.button("Extract Components", disabled=not st.session_state.user_input):
+                with st.spinner("Analyzing requirements..."):
+                    st.session_state.extracted_data = extract_stages_tools(st.session_state.user_input)
+                    st.session_state.active_step = 2
+                    st.rerun()
+        
+        # Display extracted data if available
+        if st.session_state.extracted_data:
+            st.subheader("Identified Components")
+            if isinstance(st.session_state.extracted_data, list):
+                for item in st.session_state.extracted_data:
+                    st.write(f"**Stage:** {item['stage']}, **Tools:** {', '.join(item['tools'])}")
+            else:
+                st.write(st.session_state.extracted_data)
+            st.markdown("---")
+            
+            # Step 2: Generate Specification
+            if st.session_state.active_step >= 2 and not st.session_state.specification:
+                if st.button("Generate Specification"):
+                    with st.spinner("Creating specification..."):
+                        st.session_state.specification = generate_combined_specification(st.session_state.user_input)
+                        st.session_state.active_step = 3
+                        st.rerun()
+        
+        # Display specification if available
+        if st.session_state.specification:
+            st.subheader("Pipeline Specification")
+            st.code(st.session_state.specification, language='yaml')
+            
+            # Step 3: Generate Pipeline Code
+            if st.session_state.active_step >= 3 and not st.session_state.pipeline_code:
+                if st.button("Generate Pipeline Code"):
+                    with st.spinner("Generating final code..."):
+                        st.session_state.pipeline_code = code_generator(st.session_state.specification)
+                        st.rerun()
+        
+        # Final output and download
+        if st.session_state.pipeline_code:
+            st.subheader("Final Pipeline Code")
+            st.code(st.session_state.pipeline_code, language='yaml')
+            
+            st.download_button(
+                label="Download Pipeline Code",
+                data=st.session_state.pipeline_code,
+                file_name="pipeline.yml",
+                mime="text/yaml"
+            )
+
+elif st.session_state.current_page == "Code Converter":
+    st.markdown("<h1 style='color: #FE0175;'>Pipeline Code Converter</h1>", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        input_tech = st.selectbox("Input Tech", ["Azure YAML", "GitHub Actions", "Jenkinsfile"], index=0)
+    with col2:
+        output_tech = st.selectbox("Output Tech", ["Specification", "GitHub Actions", "Azure YAML"], index=0)
+    
+    st.write("### Upload your pipeline file:")
+    uploaded_file = st.file_uploader("Choose a file", type=["yaml", "yml", "json"])
+    
+    if uploaded_file is not None:
+        file_content = uploaded_file.getvalue().decode("utf-8")
+        st.write("#### File Preview:")
+        st.code(file_content, language="yaml")
+        
+        if st.button("Convert Pipeline"):
+            st.title("Conversion Output:")
+            with st.spinner("Converting..."):
+                for message in initiate_conversation(file_content):
+                    st.markdown(message)
+            st.success("Conversion Complete!")
+
+elif st.session_state.current_page == "GenAI Chatbot":
+    st.markdown("<h1 style='color: #FE0175;'>DevOps AI Assistant</h1>", unsafe_allow_html=True)
+    
+    # Initialize chat history
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = [
+            {"role": "assistant", "content": "Hello! I'm your DevOps assistant. Ask me about CI/CD, cloud, or infrastructure."}
+        ]
+    
+    # Display chat messages
+    for message in st.session_state.chat_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    
+    # Chat input
+    if prompt := st.chat_input("Ask about DevOps..."):
+        try:
+            # Add user message to history
+            st.session_state.chat_messages.append({"role": "user", "content": prompt})
+            
+            # Display user message
+            with st.chat_message("user"):
+                st.markdown(prompt)
+            
+            # Display assistant response
+            with st.chat_message("assistant"):
+                message_placeholder = st.empty()
+                full_response = ""
+                
+                # Use your existing chatbot instance
+                for chunk in chatbot_instance.generate_response(prompt):
+                    full_response += chunk
+                    message_placeholder.markdown(full_response + "▌")
+                
+                message_placeholder.markdown(full_response)
+            
+            # Add assistant response to history
+            st.session_state.chat_messages.append({"role": "assistant", "content": full_response})
+        
+        except Exception as e:
+            st.error(f"Chatbot error: {str(e)}")
+            st.session_state.chat_messages.append({"role": "assistant", "content": "Sorry, I encountered an error. Please try again."})
+#    st.write("This feature is coming soon!")
+#    st.write("The GenAI Chatbot will help you with DevOps questions and pipeline troubleshooting.")
+
+# JavaScript for step clicking (note: Streamlit has limited JS support)
+st.markdown("""
+<script>
+function handleStepClick(stepNumber) {
+    // This would need to be connected to Streamlit's Python backend
+    console.log("Step clicked: " + stepNumber);
+    // In a real implementation, you would use Streamlit's custom components
+    // or other methods to communicate with Python
+}
+</script>
+""", unsafe_allow_html=True)

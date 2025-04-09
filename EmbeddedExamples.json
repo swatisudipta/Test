@@ -1,0 +1,108 @@
+[
+    {
+      "user_input": "Build a Java microservice using Gradle, analyze code quality with SonarQube, deploy to Tomcat, and upload to Azure Blob Storage.",
+      "embedding_text": "Building Java microservice with Gradle, analyzing code with SonarQube, deploying to Tomcat, uploading to Azure."
+    },
+    {
+      "user_input": "Develop a Python Django application, run static analysis with Bandit, package it in Docker, and deploy to AWS Lambda.",
+      "embedding_text": "Developing Django app, running security checks with Bandit, packaging in Docker, deploying to AWS Lambda."
+    },
+    {
+      "user_input": "Create a React web application, test with Cypress, package with Webpack, and deploy to Netlify.",
+      "embedding_text": "Building React app with Cypress, packaging in Webpack, deploying on Netlify."
+    },
+    {
+        "user_input": "Use Maven to build the Java project, run SonarQube for static analysis, deploy the application to an Apache Tomcat server, upload the WAR file to Azure Blob.",
+        "embedding_text": "Building Java project with Maven, analyzing with SonarQube, deploying to Tomcat, uploading WAR file to Azure Blob."
+    },
+    {
+        "user_input": "Develop a Golang API, test it with GoTest, package it using Docker and deploy it on Google Cloud Run.",
+        "embedding_text": "Developing Golang API, testing it with GoTest,packaging with Docker,Deploying to Google Cloud Run."
+    },
+    {
+        "user_input": "Create a C# .NET Core application, run SonarQube for static analysis, package it as a container with Podman, and deploy it to Azure Kubernetes Service(AKS).",
+        "embedding_text": "Creating a C# .NET Core app, analyzing code with SonarQube,packaging with Podman,deploying to Azure Kubernetes Service."
+    },
+    {
+        "user_input": "Develop a Ruby on Rails application, test it with RSpec,package it as a Docker container,and Deploy on Heroku.",
+        "embedding_text": "Developing Ruby on Rails app,testing it with RSpec,packaging with Docker, and Deploying it on Heroku."
+    },
+    {
+        "user_input":"Build a Javascript Node.js microservice,test it with Jest,package it with Docker,and deploy it to AWS ECS using Terraform.",
+        "embedding_text":"Building a Node.js microservice,testing with Jest,packaging with Docker,deploying to AWS ECS using Terraform."
+    },
+    {
+        "user_input":"Develop a PHP laravel application,analyze its security with OWASP ZAP, package it using Docker, and deploy it on Google Kubernetes Engine (GKE).",
+        "embedding_text":"Developing PHP laravel application,analyzing security with OWASP ZAP,packaging with Docker,deploying to Google Kubernetes Engine."
+    },
+    {
+        "user_input":"Develop a Python Flask API,test it with PyTest,package it using Docker, and deploy it on AWS Lambda.",
+        "embedding_text":"Developing Python Flask API,testing with PyTest,packaging with Docker,deploying to AWS Lambda."
+    },
+    {
+        "user_input":"Build a Spring Boot microservice,test it with JUnit,package it as a container,and deploy it on Kubernetes using Google Cloud Build.",
+        "embedding_text":"Building a Spring Boot microservice,testing with JUnit,deploying to Kubernetes using Google Cloud Build."
+    },
+    {
+        "user_input":"Create an ASP.NET Core application,analyze with SonarQube,package it as a Docker container,and deploy it to Azure Functions.",
+        "embedding_text":"Creating an ASP.NET Core application,analyzing with SonarQube,packaging with Docker and deploying it to Azure Functions."
+    },
+    {
+        "user_input":"Develop a FastAPI service,run MyPy for type checking,package it with Docker,and deploy it to DigitalOcean App Platform.",
+        "embedding_text":"Developing a FastAPI service,running MyPy for checking the types,packaging with Docker and Deploying it to DigitalOcean App Platform."
+    },
+    {
+        "user_input":"Develop an Express.js API,test with Mocha,package it as a Docker container,and deploy it to Kubernetes on OpenShift.",
+        "embedding_text":"Developing an Express.js API,testing with Mocha,packaging with Docker,deploying to Kubernetes on OpenShift."
+     },
+     {
+        "user_input":"Develop a Go Fiber API,Analyse code for quality,package it with Docker,and deploy it to AWS App Runner.",
+        "embedding_text":"Developing a Go Fiber API,analyzing the code quality,packaging with Docker and deploying to AWS App Runner."
+     },
+     {
+        "user_input":"Build a Vue.js frontend application,test it with Cypress,package it with Docker,deploy it to AWS Amplify.",
+        "embedding_text":"Building a Vue.js frontend app,testing with Cypress,packaging with Docker,deploying to AWS Amplify."
+     },
+     {
+        "user_input":"Develop an Angular application,test it with Jasmine,package with Docker,deploy to Firebase Hosting.",
+        "embedding_text":"Developing an Angular application,testing with Jasmine,packaging with Docker,deploying to Firebase Hosting."
+     },
+     {
+        "user_input":"Develop a NestJS API,Test it with Jest,package it using Docker,and deploy it on AWS Lambda.",
+        "embedding_text":"Developing a NestJS,Testing with Jest,packaging with Docker,deploying to AWS Lambda."
+     },
+     {
+        "user_input":"Build a SvelteKit application,test it with Playwright,package it as a Docker container,and deploy it to Vercel.",
+        "embedding_text":"Building a SvelteKit application,testing it with Playwright,packaging with Docker and deploying to Vercel. "
+     },
+     {
+        "user_input":"Develop an Elixir Phoenix API,test it with ExUnit,package it using Docker and deploy it on Fly.io.",
+        "embedding_text":"Developing Elixir Phoenix API,testing with ExUnit,packaging with Docker and deploying to Fly.io."
+     },
+     {
+        "user_input":"Develop a Scala Play Framework application,test it with Scalatest,package it using Docker and deploy it to Azure App Service.",
+        "embedding_text":"Developing Scala Play Framework application,testing with Scalatest,packaging with Docker,deploying to Azure App Service."
+     },
+     {
+        "user_input":"Create a Kotlin Ktor API,test it with Kotest,package with Docker,Deploy to Kubernetes using DigitalOcean.",
+        "embedding_text":"Creating Kotlin Ktor API, testing with Kotest,packaging with Docker,deploying to Kubernetes on DigitalOcean."
+     },
+     {
+        "user_input":"Develop a Dart Shelf API,test it with Flutter Test, package it using Docker,and deploy it on Render.",
+        "embedding_text":"Developing Dart Shelf API,testing with Flutter Test,packaging with Docker and deploying to Render."
+     },
+     {
+        "user_input":"Build a COBOL application,automate with Jenkins,execute using JCL, and deploy it on IBM Cloud Foundry.",
+        "embedding_text":"Building a COBOL app,testing it with Jenkins,executing with JCL and deploying to IBM Cloud Foundry."
+     },
+     {
+        "user_input":"Develop a Fortran web API,test it with fUnit,package it using Singularity container,and deploy to NASA Pleiades HPC.",
+        "embedding_text":"Developing Fortran web API,testing with fUnit,packaging with Singularity container and deploying to NASA Pleiades HPC."
+     },
+     {
+        "user_input":"Develop a Tcl-based web application,test it with Tcltest,package with Docker and deploy to IBM Kubernetes Service.",
+        "embedding_text":"Developing a Tcl-based web application,testing with Tcltest,packaging with Docker and deploying to IBM Kubernetes Service."
+     }
+     
+   ]
+  

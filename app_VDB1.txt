@@ -1,0 +1,242 @@
+'''File used with app_Spec4.py for JSON Specification creation after JSON file is created. 
+app_Spec4.py's output will be used as input to this file and create the final CI\CD pipeline file.'''
+import time
+import os
+import re
+import json
+#import requests
+from docx import Document
+from docx2txt import process
+#import numpy as np
+from langchain_community.llms import CTransformers
+#from PIL import Image
+import textwrap
+from llama_cpp import Llama
+from langchain_community.llms import LlamaCpp
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import Chroma
+
+start_time = time.time()
+
+
+# Path to your JSON file
+# json_file_path = 'json_specification.json'
+
+# json_spec =
+# Open and load the JSON file
+# with open(json_file_path, 'r') as file:
+#     json_spec = json.load(file)
+
+# Now you can use the 'json_data' variable which contains the JSON data
+# print(json_spec)
+
+model_path = "codellama-13b-instruct.Q4_K_S.gguf"
+model_path = "llama-3.1-8b.gguf"
+model_path="Llama-3.2-3B-Instruct.gguf"
+EMB_MODEL_KWARGS = {'device': 'cpu'}
+EMB_ALL_MINILM_L6_V2_MODEL_ID = "all-MiniLM-L6-v2/"
+VDB_PATH = "./VDB_Chroma"
+
+llm = LlamaCpp(model_path=model_path , max_tokens=2048,n_ctx= 131072, verbose=False)
+ 
+
+def llm_function(json_spec):
+   
+    print(json_spec)
+    
+    llm_config = {'max_new_tokens': 2048, 'temperature' : 0.2, 'context_length':4000, 'threads': 8}
+
+    prompt = """
+      <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+        You are a highly advanced code generation assistant designed to help automate the creation of CI/CD pipelines using open-source technologies. Generate a complete, working Jenkinsfile that implements the CI/CD pipeline described in the technical Specification JSON. The generated code should be:
+        - As complete and ready to use as possible
+        - Well-structured, readable, and maintainable
+        - Commented with explanations of key parts and assumptions made
+        - Compatible with the latest version of Jenkins and relevant plugins
+        
+        If you are unsure about a specific detail, make a reasonable assumption and mention it in the comments. Please also include a brief summary of the pipeline's functionality and any notable configuration options or trade-offs.
+        Assume that the technical Specification JSON provides sufficient information about the pipeline's requirements, including:
+        - Source control system and repository URL
+        - Build and testing tools
+        - Deployment targets and environments
+        - Security and authentication requirements
+        Please generate the Jenkinsfile in JSON format, using the latest Jenkins pipeline syntax and Create Pipeline specifications from the Technical Specification JSON.This JSON specification should contain a "stages" property with an array of stage objects, in an array with a single object that contains a 'stage' property. The stage object has three properties like task, input, and displayName each representing a stage in a pipeline.
+
+        ```yaml
+        project:
+            name: MyJavaApp
+        sourceControl:
+            provider: GitHub
+            repoUrl: [https://github.com/myorg/myrepo.git](https://github.com/myorg/myrepo.git)
+            branch: main
+            credentialsId: github-credentials-id
+        build:
+            tool: Maven
+            commands:
+                - mvn clean package
+            artifacts:
+                - target/*.jar
+        test:
+            tool: JUnit
+            reportPath: target/surefire-reports/*.xml
+            failureThreshold: 0 
+        docker:
+            image: your-dockerhub-username/your-image-name
+            hubCredentialsId: dockerhub-credentials-id
+        deploy:
+            targets:
+                -
+                    name: Staging
+                    type: ECS
+                    clusterName: your-staging-cluster-name
+                    serviceName: your-staging-service-name
+                    region: your-aws-region
+                    credentialsId: aws-credentials-id
+                -
+                    name: Production
+                    type: ECS
+                    clusterName: your-production-cluster-name
+                    serviceName: your-production-service-name
+                    region: your-aws-region
+                    credentialsId: aws-credentials-id
+        parameters:
+            deployToStaging:
+                type: boolean
+                default: true
+            deployToProduction:
+                type: boolean
+                default: false'''
+      
+    Chain-of-Thought Instructions (line-by-line):
+    1. **Single Pipeline Definition:** All stages must be contained within a single pipeline {... } block.
+    2. **Parameterization:** Use Jenkins parameters (parameters {... }) with the same names as the keys in the parameters section of the YAML document. Use the type and default fields from the YAML to define the parameter types and default values.
+    3. **Environment Variables:** Use environment variables (environment {... }) for calculated values, such as the build number and Docker image tag. Also, define environment variables for values from the technical Specification JSON, such as DOCKER_IMAGE_NAME, GITHUB_REPO, AWS_REGION, ECS_CLUSTER_STAGING, ECS_SERVICE_STAGING, ECS_CLUSTER_PRODUCTION, and ECS_SERVICE_PRODUCTION.
+    4. **Stages:** Implement the stages defined in the technical Specification JSON. Add timeout block if required. 
+       **Checkout:** Clone the code from the specified GitHub repository using the provided credentialsId.The git step in the "Source Control" stage should be git url: env.GITHUB_REPO, branch: 'main'
+       **Build:** Build the application using Maven (mvn clean package) and archive the artifacts defined in the artifacts list. Handle MavenException by catching it and logging the error.
+       **Test:** Run tests using Maven (mvn test) and junit. Use the failureThreshold to define the number of failed tests that will fail the pipeline. The paths in the junit steps in the "Test" stage should specify the path to the JUnit XML reports generated by Maven (usually target/surefire-reports/*.xml).
+       **Docker Build and Push:** Build, tag, and push the Docker image. Authenticate with Docker Hub using the provided hubCredentialsId. Handle potential errors during the build and push process by catching exceptions and logging errors.
+       **Deploy to Staging/Production:** Conditionally deploy to ECS based on the deployToStaging and deployToProduction parameters, ensure they are boolean values. Authenticate with ECR and update the ECS service. Handle exceptions during deployment by catching them and logging errors.Consider using `docker.imagePush` with `--all-tags` to push all tags.
+    5. **Credentials:** Use withCredentials to inject credentials. Use the correct credential types for each (e.g., aws for AWS, usernamePassword for Docker Hub). Please store these credentials securely in Jenkins using the Credentials Plugin.
+    6. **Error Handling:** Use try-catch blocks and post { failure {... } } to handle errors for each stage. Provide specific error handling for each stage as described above with more informative error messages.
+    7. **Conditional Deployment:** Use when with expression for conditional deployments.
+    8. **Docker Authentication:** Authenticate with ECR using aws ecr get-login-password | docker login.
+    9. **ECS Deployment:** Update the ECS service with the new image and task definition ARN. You can assume the task definition is already configured in ECR.
+    10.**Post-build Actions:** Include post { always {... } } and post { failure {... } } blocks for post-build actions (e.g., Slack notifications).
+    11.**Comments:** Add detailed comments to the Jenkinsfile.
+
+    Chain-of-Thought Instructions:
+    1. Define the overall objective:
+        - Clarify that the goal is to generate a complete Jenkinsfile that automates the CI/CD process and captures the low-level design for a Spring Boot application.
+    
+    2. Identify key components:
+        - Enumerate pipeline stages: Source Control, Build, Test, Deploy.
+        - Highlight system modules and external dependencies like GitHub, Maven, JUnit, Docker, AWS ECR, and AWS ECS.
+    
+    3. Gather detailed requirements:
+        - Specify technical details for each stage (e.g., Maven commands (`clean package`), error handling for Maven, tests, Docker, and ECS, artifact management, and environment variables for sensitive data ((AWS credentials, Docker Hub credentials, GitHub token))
+        - Dockerfile assumes it's in the project root and exposes port 8080.
+        - Deploy to separate ECS clusters for staging and production.
+        - Include design constraints such as performance, security, and maintainability.
+    
+    4. Outline the CI/CD workflow:
+        - Map out the process from code commit (checkout) through build, test, and deployment.
+    
+    5. Detail the system architecture:
+        - Describe the module interactions, data flow (e.g., source code → compiled artifact → Docker image), and integration points (e.g., AWS authentication, Docker Hub push).
+    
+    6. Draft the CI/CD script:
+        - Provide a complete Jenkinsfile that:
+        a. Checks out code from GitHub.
+        b. Builds the Java application with Maven. Use sh 'mvn clean package' for the Maven build.
+        c. Runs tests and archives artifacts. 
+        d. Builds, tags, and pushes a Docker image.use docker build and docker push. 
+        e. Deploys to AWS ECS with commented deployment commands.Use `force-new-deployment`.
+        f. Incorporate environment variables and error handling throughout every stages. Use try-catch blocks for more robust error management.
+        g. Use Slack notification or other post-build actions
+    
+    7. Compile the technical Specification JSON:
+        - Organize the document into sections: Introduction, Project Structure, CI/CD Pipeline Overview, Detailed Pipeline Stages, Tools and Technologies, and Tracking Information.
+        - Include notes on how artifacts and logs are managed for audit and rollback purposes.Use the archiveArtifacts step to store build artifacts. archive the built JAR file (e.g., archiveArtifacts artifacts: 'target/*.jar').
+    
+    8. Review and iterate:
+        - Verify that every detail is captured clearly.
+        - Ensure the Jenkinsfile code includes comments for clarity and reasonable assumptions where details are not explicitly provided.
+    
+    **Assumptions:**
+
+    * AWS CLI v2, Docker, and Maven are installed and configured on the Jenkins agent.
+    * Necessary Jenkins plugins are installed.
+    * The Dockerfile is in the project root.
+    * AWS account ID is available as an environment variable.
+    * Refine the generated Jenkisfile to follow best practices for formatting, syntax, and security.
+    
+    **Deliverables:**
+
+    * A complete, working Jenkinsfile that implements the CI/CD pipeline as described above.
+    * A list of any additional assumptions made.
+    * Incorporate the parameter names into the structured Specification JSON or provide a separate mapping.
+    * AWS CLI v2 is installed and configured on the Jenkins agent.
+    * Docker is installed and configured on the Jenkins agent.
+    * Necessary Jenkins plugins (Git, Pipeline, JUnit, Credentials Binding, AWS Credentials) are installed.
+
+    Output:
+    STEP1: Source Control
+    
+    <|eot_id|><|start_header_id|>user<|end_header_id|>
+    Here is the Technology Specification JSON: '''{json_spec}'''.
+    Please generate a JSON for Jenkinsfile with a pipeline definition that includes an agent, environment variables, and stages for source control (GitHub), building (Gradle), testing (TestNG), and deploying to staging and production environments (Docker, Amazon ECR, and Amazon ECS), with post-build actions for email notification on failure, and includes environment variables for GitHub credentials, AWS region, and Amazon ECR repository URL. Create a pipeline that catches and handles specific exceptions, such as Maven build failures or Docker image push errors. Refactor a Jenkinsfile to improve code readability, using consistent indentation, whitespace, and comments. Design a Jenkinsfile that sends a notification email with build results, including success or failure, and relevant logs. Create a pipeline that updates a dashboard or metrics platform, such as Grafana or New Relic, with build results. Create a Jenkinsfile that uses a pipeline template, such as the Jenkins Pipeline Template, to define a standardized pipeline structure.Create a pipeline that uses a testing framework, such as JUnit or PyUnit, to run tests and report results.
+    Implement RAG for high quality Jenkinsfile code generation. Enhance the Jenkinsfile to include unit testing with TestNG, ensuring code quality and reliability. Add clear and concise comments to the Jenkinsfile, explaining the purpose of each stage and step.
+    <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""                    
+    
+    prompt = prompt.replace("{json_spec}", str(json_spec))
+    
+        
+    llm_response = llm.invoke(prompt)
+    print(llm_response)    
+    return llm_response
+ 
+def generate_jenkins_from_json_spec(json_spec):
+
+    # Process the combined text with Llama API for summary
+    llm_response = llm_function(json_spec)
+
+    if llm_response :
+        pattern = r"```(.*?)```"
+        match = re.search(pattern, llm_response, re.DOTALL)
+
+        if match:
+            json_data = match.group(1)
+            start_point = json_data.find("{")
+            end_point = json_data.rfind("}")
+            json_data = json_data[start_point:end_point+1]
+            try:
+                json.loads(json_data)
+                print(json_data)
+                with open('jenkins_specification.json', 'w') as f:
+                    json.dump(json.loads(json_data), f, indent=4)
+                print("JSON specification file has been generated and saved as 'json_specification.json'.")
+                return json_data
+            except json.JSONDecodeError:
+                print("Invalid JSON data")
+        else:
+            print("No match found")
+    else:
+        print("Invalid JSON generated.")
+        return None
+    # return llm_response
+    return llm_response
+ 
+# response = generate_jenkins_from_json_spec(json_spec)
+
+
+# print(response)
+
+end_time = time.time()
+time_consumed = end_time - start_time
+hours = int(time_consumed // 3600)
+minutes = int((time_consumed % 3600) // 60)
+seconds = int(time_consumed % 60)
+milliseconds = int((time_consumed - int(time_consumed)) * 1000)
+print(f"Time consumed: {hours:02d}:{minutes:02d}:{seconds:02d}:{milliseconds:03d}")

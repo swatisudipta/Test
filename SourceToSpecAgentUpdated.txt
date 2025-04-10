@@ -319,7 +319,7 @@ def initiate_conversation(pipeline_str):
     pipeline_tools = [stage_tool,generate_spec_tool,finalize_spec_tool]
     model_path='C:/Users/196311/Documents/GenAI/Models/llama-3.1-8b.gguf'
     # Initialize the LlamaCpp model  
-    os.environ["GOOGLE_API_KEY"] = "AIzaSyArYq9kel4SMUDYNpFhhuRq40YJQuICNwM"
+    os.environ["GOOGLE_API_KEY"] = ""
     llm =ChatGoogleGenerativeAI(model="gemini-1.5-flash")
     #llm = LlamaCpp(
             #model_path=model_path,

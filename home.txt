@@ -1,0 +1,43 @@
+import streamlit as st
+
+
+
+def show():
+    st.markdown("<h1 style='text-align: center; color: #FE0175;'>NextGen DevOps Platform</h1>", unsafe_allow_html=True)
+   
+    st.markdown("""
+    <div style='text-align: center; margin-bottom: 2rem;'>
+    Revolutionize your DevOps experience with our NextGen Platform, empowered by GenAI.
+    Effortlessly create and convert pipeline code with simplicity and precision, accelerating your development process like never before.
+    \nWelcome to the future of seamless DevOps automation.
+    </div>
+    """, unsafe_allow_html=True)
+   
+    col1, col2, col3 = st.columns(3)
+   
+    with col1:
+        with st.container():
+            st.markdown("""
+            <div class="feature-card">
+                <h4>Code Generator</h4>
+                <p>Generate pipeline code from natural language requirements</p>
+            </div>
+            """, unsafe_allow_html=True)
+   
+    with col2:
+        with st.container():
+            st.markdown("""
+            <div class="feature-card">
+                <h4>Code Converter</h4>
+                <p>Convert between different pipeline formats and specifications</p>
+            </div>
+            """, unsafe_allow_html=True)
+   
+    with col3:
+        with st.container():
+            st.markdown("""
+            <div class="feature-card">
+                <h4>DevOps Chatbot</h4>
+                <p>Get AI assistance with your DevOps questions</p>
+            </div>
+            """, unsafe_allow_html=True)

@@ -1,0 +1,119 @@
+import streamlit as st
+import home
+import genapp
+import conapp
+import chatapp
+
+st.markdown("""
+<style>
+    .stApp{
+        padding-top: 0px;
+        margin-top: -75px;
+    }
+    header {
+        height: 0px !important;
+        }
+    /* Narrow text area */
+    .narrow-textarea textarea {
+        max-height: 50px !important;
+    }
+    /* Step container */
+    .step-container {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+    }
+    .step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        cursor: pointer;
+    }
+    .step-number {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background-color: #ddd;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    .step-label {
+        font-size: 0.8rem;
+        text-align: center;
+    }
+    .active .step-number {
+        background-color: #FE0175;
+        color: white;
+    }
+    .completed .step-number {
+        background-color: #4CAF50;
+        color: white;
+    }
+    .disabled .step-number {
+        background-color: #f0f0f0;
+        color: #aaa;
+    }
+    /* File uploader */
+    .file-uploader {
+        margin-top: 1rem;
+        border: 2px dashed #ccc;
+        padding: 1rem;
+        border-radius: 5px;
+    }
+    /* Main content */
+    .main-content {
+        padding-left: 2rem;
+    }
+    /* Feature cards */
+    .feature-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        background-color: transparent;
+    }
+        /* === Make st.code block scrollable ß=== */
+    div[data-testid="stCode"] pre {
+        max-height: 300px;  /* Adjust this height (e.g., 400px, 500px) */
+        overflow-y: auto;
+        overflow-x: auto; /* Optional for horizontal scroll */
+
+</style>
+""", unsafe_allow_html=True)
+
+# Initialize session state
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "Home"
+
+# Sidebar navigation
+with st.sidebar:
+    st.markdown("# NextGen DevOps Platform")
+    st.markdown("---")
+   
+    if st.button("🏠 Home"):
+        st.session_state.current_page = "Home"
+        st.rerun()
+   
+    if st.button("⚙️ Code Generator"):
+        st.session_state.current_page = "Code Generator"
+        st.rerun()
+   
+    if st.button("🔄 Code Converter"):
+        st.session_state.current_page = "Code Converter"
+        st.rerun()
+   
+    if st.button("🤖 GenAI Chatbot"):
+        st.session_state.current_page = "GenAI Chatbot"
+        st.rerun()
+
+# Main content routing
+if st.session_state.current_page == "Home":
+    home.show()
+elif st.session_state.current_page == "Code Generator":
+    genapp.show()
+elif st.session_state.current_page == "Code Converter":
+    conapp.show()
+elif st.session_state.current_page == "GenAI Chatbot":
+    chatapp.show()

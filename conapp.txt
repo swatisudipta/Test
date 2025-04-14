@@ -1,0 +1,27 @@
+import streamlit as st
+from test import initiate_conversation
+
+
+def show():
+    st.markdown("<h2 style='color: #FE0175;'>Pipeline Code Converter</h2>", unsafe_allow_html=True)
+   
+    col1, col2 = st.columns(2)
+    with col1:
+        input_tech = st.selectbox("Input Tech", ["Azure YAML", "GitHub Actions", "Jenkinsfile"], index=0)
+    with col2:
+        output_tech = st.selectbox("Output Tech", ["Specification", "GitHub Actions", "Azure YAML"], index=0)
+   
+    st.write("### Upload your pipeline file:")
+    uploaded_file = st.file_uploader("Choose a file", type=["yaml", "yml", "json"])
+   
+    if uploaded_file is not None:
+        file_content = uploaded_file.getvalue().decode("utf-8")
+        st.write("#### File Preview:")
+        st.code(file_content, language="yaml")
+       
+        if st.button("Convert Pipeline"):
+            st.title("Conversion Output:")
+            with st.spinner("Converting..."):
+                for message in initiate_conversation(file_content):
+                    st.markdown(message)
+            st.success("Conversion Complete!")

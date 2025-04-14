@@ -1,0 +1,513 @@
+import streamlit as st
+import docx
+from test import spec_gen, generate_combined_specification, convert_specification_to_code
+from test import generate_jenkins_from_json_spec
+from GenCode_v14 import extract_stages_tools
+import json
+
+def render_text_progress_bar(current_step):
+    steps = ["Extract Stages and Tools","Create Specification","Generate Code"]
+
+    step1_completed = bool(st.session_state.get('extracted_data'))
+    step2_completed = bool(st.session_state.get('specification'))
+    step3_completed = bool(st.session_state.get('pipeline_code'))
+
+    completed_steps = []
+    if step1_completed:
+        completed_steps.append(1)
+    if step2_completed:
+        completed_steps.append(2)
+    if step3_completed:
+        completed_steps.append(3)
+
+    if not step1_completed:
+        current_step = 1
+    elif not step2_completed:
+        current_step = 2
+    elif not step3_completed:
+        current_step = 3
+    else:
+        current_step = 3
+    
+    css = """
+    <style>
+       .progress-container {
+           display: flex;
+           align-items: flex-start;
+           justify-content: space-between;
+           width: 90%;
+           margin: 30px auto;
+           padding: 0;
+       }
+       .step-item {
+           display: flex;
+           flex-direction: column;
+           align-items: center;
+            text-align: center;
+            flex: 1;
+            position: relative;
+            font-size: 12px;
+            color: #000000 !important;
+        }
+        .step-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 17px;
+            left: 50%;
+            width: 100%;
+            height: 3px;
+            background-color: #e9ecef;
+            z-index: 1;
+        }
+        .step-circle {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #ffffff;
+            border: 3px solid #e9ecef;
+            color: #000000 !important;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 2;
+       }
+       .step-label {
+           margin-top: 3px;
+           word-break: keep-all;
+           font-weight: 500;
+           color: #000000 !important;
+       }
+       .step-item.completed .step-circle {
+           background-color: #28a745;
+           border-color: #28a745;
+           color: white !important;
+           font-size: 1rem;
+       }
+       .step-item.completed .step-label {
+           color: #000000 !important;
+       }
+       .step-item.completed::after {
+           background-color: #28a745;
+       }
+       .step-item.active .step-circle {
+           border-color: #FE0175;
+           background-color: #FE0175;
+           color: white !important;
+       }
+       .step-item.active .step-label {
+           color: #000000 !important;
+           font-weight: bold;
+       }
+    </style>
+    """
+    
+    html = '<div class="progress-container">'
+    for i, step_name in enumerate(steps):
+        step_num = i + 1
+        status_class = "pending"
+        circle_content = str(step_num)
+        if step_num in completed_steps:
+            status_class = "completed"
+            circle_content = "✓"
+        elif step_num == current_step:
+            status_class = "active"
+
+        html += f'<div class="step-item {status_class}">'
+        html += f'  <div class="step-circle">{circle_content}</div>'
+        html += f'  <div class="step-label">{step_name}</div>'
+        html += '</div>'
+    html += '</div>'
+    st.markdown(css + html, unsafe_allow_html=True)
+
+def render_file_progress_bar(current_step):
+    steps = ["JSON Spec File Generation", "Review JSON Spec", "Jenkins File"]
+    total_steps = len(steps)
+    
+    css = """
+    <style>
+       .progress-container {
+           display: flex;
+           align-items: flex-start;
+           justify-content: space-between;
+           width: 90%;
+           margin: 30px auto;
+           padding: 0;
+       }
+       .step-item {
+           display: flex;
+           flex-direction: column;
+           align-items: center;
+            text-align: center;
+            flex: 1;
+            position: relative;
+            font-size: 12px;
+            color: #000000 !important;
+        }
+        .step-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 17px;
+            left: 50%;
+            width: 100%;
+            height: 3px;
+            background-color: #e9ecef;
+            z-index: 1;
+        }
+        .step-circle {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #ffffff;
+            border: 3px solid #e9ecef;
+            color: #000000 !important;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 2;
+       }
+       .step-label {
+           margin-top: 3px;
+           word-break: keep-all;
+           font-weight: 500;
+           color: #000000 !important;
+       }
+       .step-item.completed .step-circle {
+           background-color: #28a745;
+           border-color: #28a745;
+           color: white !important;
+           font-size: 1rem;
+       }
+       .step-item.completed .step-label {
+           color: #000000 !important;
+       }
+       .step-item.completed::after {
+           background-color: #28a745;
+       }
+       .step-item.active .step-circle {
+           border-color: #FE0175;
+           background-color: #FE0175;
+           color: white !important;
+       }
+       .step-item.active .step-label {
+           color: #000000 !important;
+           font-weight: bold;
+       }
+    </style>
+    """
+    
+    html = '<div class="progress-container">'
+    for i, step_name in enumerate(steps):
+        step_num = i + 1
+        status_class = "pending"
+        circle_content = str(step_num)
+        if step_num < current_step:
+            status_class = "completed"
+            circle_content = "✓"
+        elif step_num == current_step:
+            status_class = "active"
+        html += f'<div class="step-item {status_class}">'
+        html += f'  <div class="step-circle">{circle_content}</div>'
+        html += f'  <div class="step-label">{step_name}</div>'
+        html += '</div>'
+    html += '</div>'
+    st.markdown(css + html, unsafe_allow_html=True)
+
+def show():
+    if 'step' not in st.session_state:
+        st.session_state.step = 1
+    if 'input_method' not in st.session_state:
+        st.session_state.input_method = "text"
+    if 'user_input' not in st.session_state:
+        st.session_state.user_input = ""
+    if 'extracted_data' not in st.session_state:
+        st.session_state.extracted_data = None
+    if 'specification' not in st.session_state:
+        st.session_state.specification = None
+    if 'pipeline_code' not in st.session_state:
+        st.session_state.pipeline_code = None
+    if 'active_step' not in st.session_state:
+        st.session_state.active_step = 1
+    if 'show_progress' not in st.session_state:
+        st.session_state.show_progress = True
+
+    st.markdown("<h2 style='color: #FE0175;'>Pipeline Code Generator</h2>", unsafe_allow_html=True)
+    if st.session_state.get('show_progress'):
+        if st.session_state.input_method == "text":
+            render_text_progress_bar(st.session_state.step)
+        elif st.session_state.input_method == "file":
+            render_file_progress_bar(st.session_state.step)
+
+    # Input Area
+    input_col1, or_col, input_col2 = st.columns([1,0.1,1], gap="small")
+    with input_col1:
+        if st.button("✍️ Enter Pipeline Description", use_container_width=True):
+            st.session_state.input_method = "text"
+            st.session_state.user_input = ""
+            st.session_state.show_progress = True
+            st.session_state.extracted_data = None
+            st.session_state.specification = None
+            st.session_state.pipeline_code = None
+            st.session_state.active_step = 1
+            st.rerun()
+    with or_col:
+        st.markdown("<div style='text-align: center; padding-top: 10px; font-weight: bold;'>OR</div>", unsafe_allow_html=True)
+    with input_col2:
+        if st.button("📁 Upload File", use_container_width=True):
+            st.session_state.input_method = "file"
+            st.session_state.user_input = ""
+            st.session_state.show_progress = True
+            st.session_state.extracted_data = None
+            st.session_state.specification = None
+            st.session_state.pipeline_code = None
+            st.session_state.active_step = 1
+            st.rerun()
+
+    # Text input area (shown when text input method is selected)
+    if st.session_state.input_method == "text":
+        st.markdown('<div class="narrow-textarea">', unsafe_allow_html=True)
+
+        text_area_key = f"pipeline_input_text_{st.session_state.get('text_reset_counter', 0)}"
+       
+        def on_text_change():
+            if st.session_state.get(text_area_key, "") == "":
+                st.session_state.text_reset_counter = st.session_state.get('text_reset_counter', 0) + 1
+                st.session_state.user_input = ""
+                st.session_state.extracted_data = None
+                st.session_state.specification = None
+                st.session_state.pipeline_code = None
+                st.session_state.active_step = 1
+                st.rerun()
+
+        user_input = st.text_area(
+            "Enter your Pipeline Requirements:",
+            height=75,
+            placeholder="Describe your pipeline requirements in detail...",
+            value=st.session_state.user_input,
+            key=text_area_key,
+            on_change=on_text_change
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+       
+        if user_input and user_input!= st.session_state.user_input:
+            st.session_state.user_input = user_input
+            st.session_state.extracted_data = None
+            st.session_state.specification = None
+            st.session_state.pipeline_code = None
+            st.session_state.active_step = 1
+            st.rerun()
+
+    # Process steps based on current active step 
+    if st.session_state.user_input:
+        # Step 1: Extraction
+        if st.session_state.active_step == 1:
+            st.subheader("1. Extract Stages and Tools")
+            
+            if not st.session_state.extracted_data:
+                if st.button("Extract Stages and Tools"):
+                    with st.spinner("Extracting..."):
+                        st.session_state.extracted_data = extract_stages_tools(st.session_state.user_input)
+                        st.rerun()
+            
+            if st.session_state.extracted_data:
+                st.write("**Extracted Stages:**")
+                for item in st.session_state.extracted_data:
+                    st.write(f"**Stage:** {item['stage']}, **Tools:** {', '.join(item['tools'])}")
+                
+                cols = st.columns([5, 4, 5])
+                with cols[2]:
+                    if st.button("▶ Next: Generate Specification", key="next1"):
+                        st.session_state.active_step = 2
+                        st.rerun()
+
+        # Step 2: Specification
+        elif st.session_state.active_step == 2:
+            st.subheader("2. Generate Specification")
+            
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                if st.button("◀ Back"):
+                    st.session_state.active_step = 1
+                    st.rerun()
+            
+            if not st.session_state.specification:
+                if st.button("Generate Specification"):
+                    with st.spinner("Generating..."):
+                        st.session_state.specification = generate_combined_specification(st.session_state.extracted_data)
+                        st.rerun()
+            
+            if st.session_state.specification:
+                st.write("**Specifications:**")
+                st.code(st.session_state.specification, language='markdown')
+                
+                cols = st.columns([6, 7, 5])
+                with cols[0]:
+                    st.download_button(
+                        label="💾 Download Specification",
+                        data=st.session_state.specification,
+                        file_name="specification.json",
+                        mime="json"
+                    )
+                with cols[2]:
+                    if st.button("▶ Next: Generate Code", key="next2"):
+                        st.session_state.active_step = 3
+                        st.rerun()
+
+        # Step 3: Code Generation
+        elif st.session_state.active_step == 3:
+            st.subheader("3. Generate Pipeline Code")
+            
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                if st.button("◀ Back"):
+                    st.session_state.active_step = 2
+                    st.rerun()
+            
+            if not st.session_state.pipeline_code:
+                if st.button("Generate Pipeline Code"):
+                    with st.spinner("Generating code..."):
+                        st.session_state.pipeline_code = convert_specification_to_code(st.session_state.specification)
+                        st.rerun()
+            
+            if st.session_state.pipeline_code:
+                st.write("**Generated Code:**")
+                st.code(st.session_state.pipeline_code, language='yaml')
+                
+                st.download_button(
+                    label="💾 Download Pipeline",
+                    data=st.session_state.pipeline_code,
+                    file_name="pipeline.yaml",
+                    mime="text/yaml"
+                )
+
+    elif st.session_state.input_method == "file":
+    # Step Content
+        if st.session_state.step == 1:
+            st.write("#### Upload your Technical Design Document:")
+            uploaded_file = st.file_uploader("Choose a .docx file", type=[".docx"])
+            if uploaded_file is not None:
+                try:
+                    file_name = uploaded_file.name
+                    doc = docx.Document(uploaded_file)
+                    docx_content = []
+                    for para in doc.paragraphs:
+                        docx_content.append(para.text)
+                    docx_content = "\n\n".join(docx_content)
+                    if docx_content:
+                        st.session_state['docx_content_from_step1'] = docx_content
+                        st.session_state['docx_file_name_step1'] = file_name
+                        st.write("#### Docx Preview:")
+                        st.code(docx_content, language="markdown")
+                        st.session_state.json_spec_generated = True
+                    else:
+                        st.info("Uploaded document appears to be empty.")
+                except Exception as e:
+                    st.error(f"Error reading DOCX file: {e}")
+                    if 'json_spec_generated' in st.session_state:
+                        del st.session_state.json_spec_generated
+
+        elif st.session_state.step == 2:
+            st.header("Step 2: Review JSON Spec & Generate jenkins Pipeline")
+            st.write("### Generated JSON Specification:")
+            st.info("After Review Click Generate to generate the Jenkinse spec file.")
+            json_spec_to_display = st.session_state.get('generated_json_spec')
+            if json_spec_to_display:
+                st.markdown(json_spec_to_display)
+                st.success("JSON Specification ready for review.")
+            else:
+                st.error("JSON Specification not found.")
+                st.warning("Please go back to Step 1 and generate the specification.")
+
+        elif st.session_state.step == 3:
+            st.header("Step 3: Jenkins File Review & Deploy.")
+            jenkins_spec_to_display = st.session_state.get('generated_jenkins_spec')
+            if jenkins_spec_to_display:
+                st.markdown(jenkins_spec_to_display)
+                st.success("Jenkins Pipeline ready for Review and Download. Click Download to Save the CICD pipeline JSON file.")
+            else:
+                st.error("Jenkins Pipeline file not found.")
+                st.warning("Please go back to Step 2 and generate the File.")
+
+    # Navigation Buttons
+        st.write("---")
+        cols = st.columns([1, 5, 1])
+        total_steps = 3
+
+        with cols[0]:
+            is_disabled_prev = st.session_state.step <= 1
+            if st.button("Previous", disabled=is_disabled_prev):
+                if not is_disabled_prev:
+                   st.session_state.validation_error = None
+                   st.session_state.step -= 1
+                   st.rerun()
+
+        with cols[2]:
+            current_step = st.session_state.step
+            button_label = "Generate" if current_step < total_steps else "Download"
+
+            if current_step == total_steps:
+                jenkins_data = st.session_state.get("generated_jenkins_spec", "")
+                data_test = {"jenkins":"data"}
+                data_for_download_str = json.dumps(data_test, indent=4)
+                st.download_button(
+                    label="Download",
+                    data=data_for_download_str,
+                    file_name="data.json",
+                    mime="application/json",
+                    key="download_button",
+                )
+                if jenkins_data:
+                    st.success("Processing Complete! Click the button above to download.")
+     
+            if (current_step < total_steps) and (current_step != total_steps):
+                if (st.button(button_label)):
+                        proceed = False
+                        error_message = None
+                        if st.session_state.step == 1:
+                            if st.session_state.get('json_spec_generated'): 
+                                try:
+                                    with st.spinner("Generating JSON Specification..."):
+                                        json_spec_result = spec_gen(st.session_state.docx_content_from_step1, st.session_state.docx_file_name_step1)
+                                    st.session_state.generated_json_spec = json_spec_result
+                                    proceed = True
+                                except Exception as e:
+                                    st.error(f"Failed to generate JSON spec: {e}")
+                                    error_message = f"Failed to generate JSON spec: {e}"
+                            else: 
+                                error_message = "Please Upload the TDD."
+                        
+                        elif st.session_state.step == 2:
+                            if 'generated_json_spec' in st.session_state:
+                                json_spec_to_process = st.session_state.get('generated_json_spec')
+                                generated_jenkins_res = generate_jenkins_from_json_spec(json_spec_to_process)
+                                st.session_state.generated_jenkins_spec = generated_jenkins_res
+                                proceed = True
+                            else:
+                                error_message = "JSON Spec missing. Please go back to Step 1."
+
+                        elif st.session_state.step == 3:
+                            if "generated_jenkins_spec" in st.session_state:
+                                proceed = True
+
+                        if proceed and st.session_state.step < total_steps:
+                            st.session_state.validation_error = None
+                            st.session_state.step += 1
+                            st.rerun()
+                        elif proceed and st.session_state.step == total_steps:
+                            st.session_state.validation_error = None
+                            st.session_state.finished = True
+                            st.success("Processing Complete!")
+                            st.rerun()
+                        else:
+                            st.session_state.validation_error = error_message
+                            st.rerun()
+
+        if 'validation_error' in st.session_state and st.session_state.validation_error:
+            st.error(st.session_state.validation_error)

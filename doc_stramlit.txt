@@ -1,0 +1,517 @@
+import streamlit as st
+import docx
+from app_Spec4 import spec_gen
+from app_VDB1 import generate_jenkins_from_json_spec
+import json
+
+
+
+# --- Page Configuration ---
+st.set_page_config(layout="centered", page_title="Checkout Process")
+total_steps =0
+
+# --- Inject CSS for White Background & General Element Styling (Text Color Updated) ---
+st.markdown("""
+<style>
+    /* === Base & Background === */
+    .stApp {
+        background-color: #FFFFFF !important; /* White background */
+    }
+    body {
+        color: #000000 !important; /* Black default text */
+    }
+
+    /* === Headers === */
+    h1, h2, h3, h4, h5, h6 {
+       color: #000000 !important; /* Black headers */
+    }
+
+    /* === Buttons === */
+    .stButton>button {
+        border: 1px solid #007bff;       /* Blue border */
+        background-color: #007bff;      /* Blue background */
+        color: white !important;         /* White text for contrast */
+        # padding: 0.5rem 1rem;
+        border-radius: 0.25rem;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    .stButton>button:hover:not(:disabled) {
+        background-color: #0056b3;
+        border-color: #0056b3;
+    }
+    .stButton>button:disabled {
+         background-color: #cccccc;
+         color: #666666 !important;      /* Keep disabled text readable grey */
+         border-color: #cccccc;
+         cursor: not-allowed;
+    }
+
+     /* === Input Fields === */
+    .stTextInput input,
+    .stTextInput textarea,
+    .stSelectbox div[data-baseweb="select"] > div {
+        border: 1px solid #cccccc;
+        background-color: #f8f9fa;
+        color: #000000 !important; /* Black text inside inputs */
+    }
+     .stTextInput label,
+     .stSelectbox label {
+          color: #000000 !important; /* Black labels */
+     }
+
+     /* === Alert Boxes (st.info, st.success, st.error) === */
+    div[data-baseweb="alert"] { /* Default/Info */
+         background-color: #e7f3ff;
+         color: #000000 !important;     /* Black text in alerts */
+         border: 1px solid #b8d9ff;
+         border-radius: 0.25rem;
+    }
+    div[data-testid="stSuccess"] {
+         background-color: #d4edda;
+         color: #000000 !important;     /* Black text in alerts */
+         border: 1px solid #c3e6cb;
+    }
+     div[data-testid="stError"] {
+         background-color: #f8d7da;
+         color: #000000 !important;     /* Black text in alerts */
+         border: 1px solid #f5c6cb;
+     }
+
+    /* === Horizontal Separator === */
+    hr {
+        border-top: 1px solid #dddddd;
+    }
+    /* === File Uploader Filename === */
+    div[data-testid="stFileUploaderFileName"], div[data-testid="stFileUploaderFile"]  small{
+         color: #000000 !important; /* Ensure filename is black */
+    }
+    /* Delete Button Icon (Add this part) */
+    div[data-testid="stFileUploaderDeleteBtn"] svg {
+        fill: #000000 !important; /* Make delete 'X' icon black */
+    }
+
+    /* === Make st.code block scrollable ß=== */
+    div[data-testid="stCode"] pre {
+        max-height: 300px;  /* Adjust this height (e.g., 400px, 500px) */
+        overflow-y: auto;
+        overflow-x: auto; /* Optional for horizontal scroll */
+    }
+            
+
+    /* === Make the success alert black === */
+    div[data-testid="stAlertContentSuccess"] div[data-testid="stMarkdownContainer"] p {
+            color: #000000 !important; /* Ensure Success Alert text is black */
+            }
+    /* === Make the alert Info black === */
+    div[data-testid="stAlertContentInfo"] div[data-testid="stMarkdownContainer"] p {
+            color: #000000 !important; /* Ensure Alert Info text is black */
+            }
+
+    .stButton>button {
+        border: 1px solid #007bff;       /* Blue border */
+        background-color: #007bff;      /* Blue background */
+        /*color: white !important;   */      /* White text for contrast */
+        # padding: 0.5rem 1rem; /* Adjust padding as needed */
+        border-radius: 0.25rem;
+       /* transition: background-color 0.2s ease, border-color 0.2s ease;*/
+
+        /* --- Add these lines for auto-width --- */
+        width: auto;/* Allow width to adjust to content */
+        min-width: 150px;
+        display: inline-block;   /* Ensure it behaves like block for padding but flows inline */
+        padding-left: 0.5rem;      /* Example horizontal padding */
+        padding-right: 0.5rem;     /* Example horizontal padding */
+        /* --- End auto-width lines --- */
+    }
+    .stDownloadButton >button {
+        border: 1px solid #007bff;       /* Blue border */
+        background-color: #007bff;      /* Blue background */
+        /*color: white !important;   */      /* White text for contrast */
+        # padding: 0.5rem 1rem; /* Adjust padding as needed */
+        border-radius: 0.25rem;
+       /* transition: background-color 0.2s ease, border-color 0.2s ease;*/
+
+        /* --- Add these lines for auto-width --- */
+        width: auto;/* Allow width to adjust to content */
+        min-width: 150px;
+        display: inline-block;   /* Ensure it behaves like block for padding but flows inline */
+        padding-left: 0.5rem;      /* Example horizontal padding */
+        padding-right: 0.5rem;     /* Example horizontal padding */
+        /* --- End auto-width lines --- */
+    }
+            
+            
+    /* === Make the Error Msg black === */
+    div[data-testid="stAlertContentError"] div[data-testid="stMarkdownContainer"] p {
+            color: #000000 !important; /* Ensure Alert Info text is black */
+            }
+    /* === Make the Error Msg black === */
+    p{
+            color: #000000; /* Ensure Alert text is black */
+            }
+
+</style>
+""", unsafe_allow_html=True)
+
+# --- Initialize Session State ---
+if 'step' not in st.session_state:
+    st.session_state.step = 1
+
+# --- Helper Function for the New Progress Bar ---
+def render_progress_bar(current_step):
+    global total_steps
+    steps = ["JSON Spec File Generation", "Review JSON Spec", "Jenkins File",]
+    total_steps = len(steps)
+
+    # --- CSS Styling for Progress Bar (Text Color Updated) ---
+    css = """
+    <style>
+        .progress-container {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            width: 90%;
+            margin: 30px auto;
+            padding: 0;
+        }
+        .step-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            flex: 1;
+            position: relative;
+            font-size: 13px;
+            color: #000000 !important; /* Default label color: Black */
+        }
+        /* Connecting Line */
+        .step-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 17px;
+            left: 50%;
+            width: 100%;
+            height: 3px;
+            background-color: #e9ecef; /* Lighter Grey line */
+            z-index: 1;
+        }
+        /* Circle */
+        .step-circle {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background-color: #ffffff;
+            border: 3px solid #e9ecef; /* Lighter Grey border (default/pending) */
+            color: #000000 !important;  /* Black number (default/pending) */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 2;
+        }
+        .step-label {
+            margin-top: 5px;
+            word-break: keep-all;
+            font-weight: 500;
+            color: #000000 !important; /* Ensure labels are black */
+        }
+
+        /* === Completed Step Styling === */
+        .step-item.completed .step-circle {
+            background-color: #28a745;
+            border-color: #28a745;
+            color: white !important;    /* Keep checkmark white for contrast */
+            font-size: 1.2rem;
+        }
+        .step-item.completed .step-label {
+            color: #000000 !important; /* Black label */
+        }
+        .step-item.completed::after {
+            background-color: #28a745; /* Green line */
+        }
+
+        /* === Active Step Styling === */
+        .step-item.active .step-circle {
+            border-color: #007bff;
+            background-color: #007bff;
+            color: white !important;    /* Keep number white for contrast */
+        }
+        .step-item.active .step-label {
+            color: #000000 !important;  /* Black label */
+            font-weight: bold;          /* Keep bold for emphasis */
+        }
+
+    </style>
+    """
+    # --- HTML Generation (No changes needed here) ---
+    html = '<div class="progress-container">'
+    for i, step_name in enumerate(steps):
+        step_num = i + 1
+        status_class = "pending"
+        circle_content = str(step_num)
+        if step_num < current_step:
+            status_class = "completed"
+            circle_content = "✓"
+        elif step_num == current_step:
+            status_class = "active"
+        html += f'<div class="step-item {status_class}">'
+        html += f'  <div class="step-circle">{circle_content}</div>'
+        html += f'  <div class="step-label">{step_name}</div>'
+        html += '</div>'
+    html += '</div>'
+    st.markdown(css + html, unsafe_allow_html=True)
+
+# --- Main Title ---
+# st.title("hello")
+
+# --- Render Progress Bar ---
+render_progress_bar(st.session_state.step)
+
+# --- Step Content ---
+# total_steps = 3
+
+# == STEP 1: Shopping Basket ==
+if st.session_state.step == 1:
+    st.header("Step 1: JSON Specification file generation")
+    st.write("### Upload your Technical Design Document:")
+    uploaded_file = st.file_uploader("Choose a .docx file", type=[".docx"])
+    if uploaded_file is not None:
+        try:
+            file_name = uploaded_file.name
+            print(file_name)
+            # Read the .docx file
+            doc = docx.Document(uploaded_file)
+            print(doc)
+
+            # Extract the text from the document
+            docx_content = []
+            for para in doc.paragraphs:
+                docx_content.append(para.text)
+
+            # Join the text into a single string
+            docx_content = "\n\n".join(docx_content)
+        
+            if docx_content:
+                st.session_state['docx_content_from_step1'] = docx_content
+                st.session_state['docx_file_name_step1'] = file_name
+                # Assuming CSS for scrolling st.code is added earlier
+                st.write("#### DOCX Preview:")
+                st.code(docx_content, language="markdown")
+                # can_confirm = True
+                st.session_state.json_spec_generated = True
+            else:
+                st.info("Uploaded document appears to be empty.")
+            # can_confirm = True
+        except Exception as e:
+            st.error(f"Error reading Docx file: {e}")
+            if 'json_spec_generated' in st.session_state:
+                del st.session_state.json_spec_generated # Clear if error
+                # can_confirm = False
+        # st.divider()
+        # st.checkbox(
+        #             "I have reviewed the document details and confirm the specification.",
+        #             key='json_spec_generated',
+        #             disabled=not can_confirm
+        #             )
+
+
+# == STEP 2: Personal Details ==
+elif st.session_state.step == 2:
+    st.header("Step 2: Review JSON Spec & Generate jenkins Pipeline")
+
+    # --- Display Generated JSON Spec ---
+    st.write("### Generated JSON Specification:")
+    st.info("After Review Click Generate to generate the Jenkinse spec file.") # Text inside will be black
+
+    # Retrieve the spec from session state
+    json_spec_to_display = st.session_state.get('generated_json_spec')
+
+    if json_spec_to_display:
+        # Display using markdown (as per your sample)
+        # You might want st.code() or st.json() depending on format
+        st.markdown(json_spec_to_display) # Display the JSON spec in the Streamlit UI
+        st.success("JSON Specification ready for review.")
+    else:
+        # Show error if spec wasn't found (e.g., user navigated back/forward improperly)
+        st.error("JSON Specification not found.")
+        st.warning("Please go back to Step 1 and generate the specification.")
+    # --- End Display ---
+
+    # if st.button("Generate JSON Specification"):
+    #     st.title("JSON Specification:")
+    #     with st.spinner("Creating json spec.."):
+    #         # for message in initiate_conversation(yaml_content):
+    #         json_spec = spec_gen(doc)
+    #         st.markdown(json_spec)
+           
+    #         st.success("JSON Specification Generated!")
+
+# == STEP 3: Shipping Details ==
+elif st.session_state.step == 3:
+    st.header("Step 3: Jenkins File Review & Deploy.")
+    jenkins_spec_to_display = st.session_state.get('generated_jenkins_spec')
+
+    if jenkins_spec_to_display:
+        # Display using markdown (as per your sample)
+        # You might want st.code() or st.json() depending on format
+        st.markdown(jenkins_spec_to_display) 
+        st.success("Jenkins Pipeline ready for Review and Download. Click Download to Save the CICD pipeline JSON file.")
+    else:
+        # Show error if spec wasn't found (e.g., user navigated back/forward improperly)
+        st.error("Jenkins Pipeline file not found.")
+        st.warning("Please go back to Step 2 and generate the File.")
+
+    # st.info("Where should we send your order?") # Text inside will be black
+    # st.text_input("Street Address*", key="street_address") # Label will be black
+    # st.text_input("Apartment, suite, etc. (Optional)", key="address_line_2") # Label will be black
+    # col1, col2, col3 = st.columns(3)
+    # with col1:
+    #     st.text_input("City*", key="city") # Label will be black
+    # with col2:
+    #     st.text_input("State/Province*", key="state") # Label will be black
+    # with col3:
+    #     st.text_input("Postal Code*", key="postal_code") # Label will be black
+    # st.selectbox("Country*", ["USA", "Canada", "India", "Other"], key="country") # Label will be black
+
+# # == STEP 4: Confirmation ==
+# elif st.session_state.step == 4:
+#     st.header("Step 4: Confirmation")
+#     st.success("Thank you for your order!") # Text inside will be black
+#     st.balloons()
+#     st.write("Order summary and payment details would typically be shown here.") # Text will be black
+#     st.write(f"Name: {st.session_state.get('first_name', '')} {st.session_state.get('last_name', '')}") # Text will be black
+#     st.write(f"Email: {st.session_state.get('email_checkout', 'N/A')}") # Text will be black
+#     st.write(f"Shipping to: {st.session_state.get('street_address', '')}, {st.session_state.get('city', '')}...") # Text will be black
+
+# --- Navigation Buttons ---
+st.write("---") # Separator before buttons
+cols = st.columns([1, 5, 1]) # Ratio for button placement
+
+# Previous Button
+with cols[0]:
+    is_disabled_prev = st.session_state.step <= 1
+    if st.button("Previous", disabled=is_disabled_prev):
+        if not is_disabled_prev:
+            st.session_state.validation_error = None
+            st.session_state.step -= 1
+            st.rerun()
+
+# Next/Finish Button
+with cols[2]:
+    current_step = st.session_state.step
+    button_label = "Generate" if current_step < total_steps else "Download"
+
+    # === Logic for FINAL STEP (Step 3) ===
+    if current_step == total_steps:
+        jenkins_data = st.session_state.get("generated_jenkins_spec", "")
+
+        # --- Prepare data for download ---
+        data_to_download = ""
+        if jenkins_data:
+             # Clean potential markdown backticks if they exist from placeholder/actual output
+            data_to_download = str(jenkins_data).strip('` \n')
+            # data_to_download = {"jenkins":"data"}
+            # data_to_download = str(data_test).strip('` \n')
+            data_to_download = json.loads(data_to_download)
+            data_for_download_str = json.dumps(data_to_download, indent=4) # Re-dump
+
+        st.download_button(
+            label="Download",
+            data=data_for_download_str,
+            # data=json_data,
+            file_name="data.json",
+            mime="application/json",
+            # Jenkinsfiles are typically plain text (or groovy)
+            key="download_button",
+            # disabled=not data_to_download # Disable if no data
+        )
+        # Add a completion message after download button
+        if data_to_download:
+            st.success("Processing Complete! Click the button above to download.")
+     
+    if (current_step < total_steps) and (current_step != total_steps):
+        if (st.button(button_label)):
+                proceed = False
+                error_message = None
+                # --- Validation Logic per Step (unchanged) ---
+                if st.session_state.step == 1:
+                    if st.session_state.get('json_spec_generated'): 
+                        print(st.session_state.get('json_spec_generated'))
+                        print(st.session_state.docx_content_from_step1)
+                        try:
+                                # Show spinner during generation
+                                with st.spinner("Generating..."):
+                                    # Call your function with the stored content
+                                    json_spec_result = '''```'''+str(spec_gen(st.session_state.docx_content_from_step1, st.session_state.docx_file_name_step1))+'''```'''
+                                    # json_spec_result = """{"msg":"success"}"""
+                                    # json_spec_result = """{"msg":"success"}"""
+
+
+                                # Store the result in session state for Step 2
+                                st.session_state.generated_json_spec = json_spec_result
+                                proceed = True
+                                # Optionally clear the input content now if not needed later
+                                # del st.session_state.docx_content_for_spec
+
+                        except Exception as e:
+                            st.error(f"Failed to generate JSON spec: {e}")
+                            error_message = f"Failed to generate JSON spec: {e}"
+                            # Keep proceed = False (default)
+                    else: 
+                        error_message = "Please Upload the TDD."
+                        
+                elif st.session_state.step == 2:
+                    # if not st.session_state.get('first_name') or \
+                    #    not st.session_state.get('last_name') or \
+                    #    not st.session_state.get('email_checkout') or \
+                    #    not st.session_state.get('phone_checkout'):
+                    #      error_message = "Please fill in all required personal details (*)."
+                    # else: proceed = True
+
+                    if 'generated_json_spec' in st.session_state:
+                            json_spec_to_process = st.session_state.get('generated_json_spec')
+                            generated_jenkins_res=""
+                            with st.spinner("Generating..."):
+                                generated_jenkins_res = '''```'''+ str(generate_jenkins_from_json_spec(json_spec_to_process)) +'''```'''
+                            # generated_jenkins_res = """{"msg":"success"}"""
+                            # Store the result in session state for Step 3
+                            st.session_state.generated_jenkins_spec = generated_jenkins_res
+                            proceed = True
+                    else:
+                            error_message = "JSON Spec missing. Please go back to Step 1."
+
+                elif st.session_state.step == 3:
+                    # if not st.session_state.get('generated_jenkins_spec') or \
+                    #    not st.session_state.get('city') or \
+                    #    not st.session_state.get('state') or \
+                    #    not st.session_state.get('postal_code') or \
+                    #    not st.session_state.get('country'):
+                    #       error_message = "Please fill in all required shipping details (*)."
+                    # else: proceed = True
+                    if "generated_jenkins_spec" in st.session_state:
+                        
+                        proceed = True
+                # elif st.session_state.step == 4:
+                #      proceed = True
+                # --- Handle Proceed or Show Error ---
+                if proceed and st.session_state.step < total_steps:
+                    st.session_state.validation_error = None
+                    st.session_state.step += 1
+                    st.rerun()
+                elif proceed and st.session_state.step == total_steps:
+                    st.session_state.validation_error = None
+                    st.session_state.finished = True
+                    st.success("Processing Complete!") # Text inside will be black
+                    st.rerun()
+                else:
+                    st.session_state.validation_error = error_message
+                    st.rerun()
+
+# Display validation errors if any exist after a rerun
+if 'validation_error' in st.session_state and st.session_state.validation_error:
+    st.error(st.session_state.validation_error) # Text inside will be black
+
+# st.caption(f"Current step: {st.session_state.step}") # Text will be black

@@ -1,0 +1,204 @@
+import os
+import requests
+from docx2txt import process
+from langchain_community.llms import CTransformers
+import textwrap
+import json
+from langchain_community.llms import LlamaCpp
+from docx import Document
+from llama_cpp import llama_cpp
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import Chroma
+import streamlit as st
+import re
+import json
+
+# Validate JSON
+def validate_json(json_string):
+    try:
+        json.loads(json_string)
+        return True
+    except json.JSONDecodeError:
+        return False
+    
+# Model path configuration
+model_path = "codellama-13b-instruct.Q4_K_S.gguf"
+model_path = "llama-3.1-8b.gguf"
+model_path="Llama-3.2-3B-Instruct.gguf"
+EMB_MODEL_KWARGS = {'device': 'cpu'}
+EMB_ALL_MINILM_L6_V2_MODEL_ID = "all-MiniLM-L6-v2/"
+VDB_PATH = "./VDB_Chroma"
+llm = LlamaCpp(model_path=model_path , max_tokens=2048,n_ctx= 131072, verbose=False)
+ 
+
+def getVectorStore(doc_content, file_name):
+
+    emb_all_MiniLM_L6_v2 = HuggingFaceEmbeddings(model_name=EMB_ALL_MINILM_L6_V2_MODEL_ID, model_kwargs=EMB_MODEL_KWARGS)
+    file_name = file_name.rsplit(".",1)[0]
+    
+
+    if not (os.path.exists(VDB_PATH+"/"+file_name)):
+        os.makedirs(VDB_PATH+"/"+file_name, exist_ok=True)
+
+    if  (os.path.exists(VDB_PATH+"/"+file_name+"/chroma.sqlite3")): #chroma.sqlite3
+        print("\n\n\nVDB ALREADY EXISTS\n\n\n")
+        vectorstore = Chroma(persist_directory= VDB_PATH+"/"+file_name, embedding_function=emb_all_MiniLM_L6_v2, collection_name="cicd")
+    else:
+        # doc = doc_content
+        # text = ""
+        # # Extract text from paragraphs
+        # for para in doc.paragraphs:
+        #     #   print(para.text ,"------\n\n\n\n--------")
+        #       text += para.text + "\n"
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=400, separators=["\n \n","\n\n",".\n","\n",".",]) #["\n \n","\n\n",".\n","\n",".",]
+        doc_text = text_splitter.create_documents([doc_content]) 
+        print(doc_text)
+        vectorstore = Chroma.from_documents(doc_text, emb_all_MiniLM_L6_v2, persist_directory=VDB_PATH+"/"+file_name, collection_name="cicd")
+    return vectorstore
+
+ 
+
+def llm_function(query):
+   
+    print(query)
+    
+    llm_config = {'max_new_tokens': 2048, 'temperature' : 0.2, 'context_length':4000, 'threads': 8}
+
+    prompt = """
+      <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+        Extract and generate a comprehensive JSON specification file from the provided Technical Design Document (TDD). The output should include detailed information for the following sections:
+
+        1. Metadata: Include the title, author, and date of the document.
+        2. Technologies: List all unique technologies, frameworks, and libraries mentioned in the TDD.
+        3. Tools: Identify all unique tools, software, and platforms required for implementation.
+        4. Steps: Break down the implementation process into sequential steps, organized into stages. The `steps` section should be a list of stage objects. Each stage object should have a "stage" key (string representing the stage name) and an optional "steps" key (a list of task objects within that stage).
+        5.  Services: Define all services, APIs, and integrations required for the solution as a list of service objects. Each service object should have a "name" (string) and a "description" (string). Include details like authentication methods and API endpoints if available.
+        6.  System Context: Describe external interfaces as a list of interface objects, each with "interface_type", "interface_format", and "interface_medium". Also, describe rates of information flow as a list of objects with details like "information_update_frequency", "message_block_volume", and "failure_consequences". Include concurrency and security aspects as lists of objects with relevant details.
+        7.  System Design: Provide details on the system architecture, including "design_method" (string), and lists for "technologies" (with "name" and optional "version"), "standards" (with "name" and optional "version"), and "architectural_pattern" (string).
+        8.  Tools (Revised): List all unique tools mentioned in the document.
+        9.  Outstanding Issues: List any design issues that remain unresolved as a list of issue objects, each with "issue_type", "description", "impact", and "solution".
+        10. Component Description: Provide a description of software components as a list of component objects. Each object should include "component_name", "type", "purpose", "function", "subordinates" (list of strings), "dependencies" (list of strings), "interfaces" (list of strings), "resources" (list of strings), "processing_details" (string or null), and "data_structures" (list of data structure objects with "name" and "columns").
+        11. Software Requirements Traceability Matrix: If available, represent the mapping as a list of objects, each with "requirement_id" and a "component" object (containing "component_name" and "type").
+        12. Documentation and Programming Standards: List relevant standards as a list of standard objects, each with "standard_name", "description", "applicable_to", and "implementation".
+
+        # Example of JSON specification file structure 
+    [
+    {
+        "stages": [
+            {
+                "stage": "Gradle Build",
+                "steps": [
+                    {
+                        "task": "Gradle",
+                        "inputs": {
+                            "gradleFile": "build.gradle",
+                            "goals": "clean build"
+                        },
+                        "displayName": "GradleBuild"
+                    }
+                ]
+            }
+        ]
+    }
+]
+    
+    return json_spec
+
+    <|eot_id|><|start_header_id|>user<|end_header_id|>
+    Here is the Technology Design document: \'\'\'{query}\'\'\'.
+    Please generate a JSON specification file with the extracted details, strictly adhering to the structure and data types specified above. Ensure that the JSON is valid and complete. Extract as much detail as possible for each section mentioned.
+    <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""                 
+    
+    prompt = prompt.replace("{query}", str(query))
+        
+        
+    llm_response = llm.invoke(prompt)
+    print(llm_response)    
+    return llm_response
+
+    # #   Ensure the generated JSON is valid before proceeding
+    # if not validate_json(llm_response):
+    #     print("Invalid JSON generated by LLM.")
+    #     return None
+        
+    # #   Parse the JSON response
+    # data = json.loads(llm_response)
+        
+    # #   Restructure the 'steps' section
+    # if "steps" in data:
+            
+    #     stages_list = ''
+    #     for stage_name, stage_details in data["steps"].items():
+    #             stage_object = {"stage": stage_details["stage"]}
+    #             if "steps" in stage_details:
+    #                 stage_object["steps"] = stage_details["steps"]
+    #             stages_list.append(stage_object)
+    #     data["steps"] = [{"stages": stages_list}]  # Wrap the list in another list
+        
+    # restructured_json_output = json.dumps(data, indent=4)  # Convert the restructured data back to JSON
+    # return restructured_json_output
+ 
+def process_document(doc_content, file_name):
+    print("Entered PD: content:",doc_content)
+    
+    vdb_obj = getVectorStore(doc_content,file_name)
+    retriever = vdb_obj.as_retriever(search_type="mmr",search_kwargs={"k":10})
+    vdb_res = retriever.invoke("Read and extract relevant details from Technology design document")
+    print(vdb_res)
+    
+    llm_response = llm_function(vdb_res)
+
+    if llm_response :
+        pattern = r"```(.*?)```"
+        match = re.search(pattern, llm_response, re.DOTALL)
+
+        if match:
+            json_data = match.group(1)
+            start_point = json_data.find("{")
+            end_point = json_data.rfind("}")
+            json_data = json_data[start_point:end_point+1]
+            try:
+                json.loads(json_data)
+                print(json_data)
+                with open('json_specification.json', 'w') as f:
+                    json.dump(json.loads(json_data), f, indent=4)
+                print("JSON specification file has been generated and saved as 'json_specification.json'.")
+                return json_data
+            except json.JSONDecodeError:
+                print("Invalid JSON data")
+        else:
+            print("No match found")
+            start_point = llm_response.find("{")
+            end_point = llm_response.rfind("}")
+            json_data = llm_response[start_point:end_point+1]
+            try:
+                json.loads(json_data)
+                print(json_data)
+                with open('json_specification_N.json', 'w') as f:
+                    json.dump(json.loads(json_data), f, indent=4)
+                print("JSON specification file has been generated and saved as 'json_specification.json'.")
+                return json_data
+            except json.JSONDecodeError:
+                print("Invalid JSON data")
+            return json_data
+    else:
+        print("Invalid JSON generated.")
+        return None
+
+    # if llm_response : #and validate_json(llm_response): # Removed redundant validation as it's already done in llm_function
+    #     with open("json_specification.json", "w") as json_file:
+    #         json_file.write(llm_response)
+    #     print("JSON specification file has been generated and saved as 'json_specification.json'.")
+    #     return llm_response
+    # else:
+    #     print("Invalid JSON generated.")
+    #     return None
+
+    return llm_response
+    
+def spec_gen(doc_content, file_name):
+    response = process_document(doc_content, file_name)
+    print(response)
+    print("JSON specification file has been generated and saved as 'json_specification.json'.")
+    return response # Return the response instead of just printing it

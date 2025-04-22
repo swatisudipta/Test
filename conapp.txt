@@ -1,27 +1,247 @@
 import streamlit as st
-from test import initiate_conversation
+from test import initiate_conversation, final_conversation
 
+def render_progress_bar(current_step):
+    steps = ["Upload File", "Create Specification", "Generate Code"]
+    
+    # Track completion status based on actual outputs
+    completed_steps = []
+    if st.session_state.get('file_content'):
+        completed_steps.append(1)
+    if st.session_state.get('conversion_output'):
+        completed_steps.append(2)
+    if st.session_state.get('final_code'):
+        completed_steps.append(3)
+
+    css = """
+    <style>
+       .progress-container {
+           display: flex;
+           align-items: flex-start;
+           justify-content: space-between;
+           width: 90%;
+           margin: 30px auto;
+           padding: 0;
+       }
+       .step-item {
+           display: flex;
+           flex-direction: column;
+           align-items: center;
+           text-align: center;
+           flex: 1;
+           position: relative;
+           font-size: 12px;
+           color: #000000 !important;
+        }
+        .step-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 17px;
+            left: 50%;
+            width: 100%;
+            height: 3px;
+            background-color: #e9ecef;
+            z-index: 1;
+        }
+        .step-circle {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #ffffff;
+            border: 3px solid #e9ecef;
+            color: #000000 !important;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 2;
+       }
+       .step-label {
+           margin-top: 3px;
+           word-break: keep-all;
+           font-weight: 500;
+           color: #000000 !important;
+       }
+       .step-item.completed .step-circle {
+           background-color: #28a745;
+           border-color: #28a745;
+           color: white !important;
+       }
+       .step-item.completed .step-label {
+           color: #000000 !important;
+       }
+       .step-item.completed::after {
+           background-color: #28a745;
+       }
+       .step-item.active .step-circle {
+           border-color: #FE0175;
+           background-color: #FE0175;
+           color: white !important;
+       }
+       .step-item.active .step-label {
+           color: #000000 !important;
+           font-weight: bold;
+       }
+    </style>
+    """
+    
+    html = '<div class="progress-container">'
+    for i, step_name in enumerate(steps):
+        step_num = i + 1
+        status_class = ""
+        circle_content = str(step_num)
+        
+        if step_num in completed_steps:
+            status_class = "completed"
+            circle_content = "✓"
+        elif step_num == current_step:
+            status_class = "active"
+        
+        html += f'<div class="step-item {status_class}">'
+        html += f'  <div class="step-circle">{circle_content}</div>'
+        html += f'  <div class="step-label">{step_name}</div>'
+        html += '</div>'
+    html += '</div>'
+    st.markdown(css + html, unsafe_allow_html=True)
+
+def is_conversion_supported(input_tech, output_tech):
+    # Define supported conversions
+    supported_conversions = [
+        ("Azure YAML", "Jenkinsfile"),
+        ("GitHub Actions", "Azure YAML")
+        # Add more supported conversions here as you implement them
+    ]
+    return (input_tech, output_tech) in supported_conversions
 
 def show():
+    # Initialize session state
+    if 'page' not in st.session_state:
+        st.session_state.page = 1
+    if 'conversion_output' not in st.session_state:
+        st.session_state.conversion_output = None
+    if 'final_code' not in st.session_state:
+        st.session_state.final_code = None
+    if 'file_content' not in st.session_state:
+        st.session_state.file_content = None
+    if 'uploaded_file' not in st.session_state:
+        st.session_state.uploaded_file = None
+
     st.markdown("<h2 style='color: #FE0175;'>Pipeline Code Converter</h2>", unsafe_allow_html=True)
-   
+    
+    # Show progress bar with current page
+    render_progress_bar(st.session_state.page)
+
+    # Technology selection
     col1, col2 = st.columns(2)
     with col1:
-        input_tech = st.selectbox("Input Tech", ["Azure YAML", "GitHub Actions", "Jenkinsfile"], index=0)
+        input_tech = st.selectbox("Input Tech", ["Azure YAML", "GitHub Actions", "Jenkinsfile", "AWS"], index=None, placeholder="Select Input Tech")
     with col2:
-        output_tech = st.selectbox("Output Tech", ["Specification", "GitHub Actions", "Azure YAML"], index=0)
-   
-    st.write("### Upload your pipeline file:")
-    uploaded_file = st.file_uploader("Choose a file", type=["yaml", "yml", "json"])
-   
-    if uploaded_file is not None:
-        file_content = uploaded_file.getvalue().decode("utf-8")
-        st.write("#### File Preview:")
-        st.code(file_content, language="yaml")
-       
-        if st.button("Convert Pipeline"):
-            st.title("Conversion Output:")
-            with st.spinner("Converting..."):
-                for message in initiate_conversation(file_content):
-                    st.markdown(message)
-            st.success("Conversion Complete!")
+        output_tech = st.selectbox("Output Tech", ["Azure YAML", "GitHub Actions", "Jenkinsfile", "AWS"], index=None, placeholder="Select Output Tech")
+
+    # Page 1: File Upload
+    if st.session_state.page == 1:
+        st.write("### Upload your pipeline file:")
+        
+        uploaded_file = st.file_uploader("Choose a file", 
+                                       type=["yaml", "yml", "json"],
+                                       key="file_uploader")
+        
+        if uploaded_file is not None and uploaded_file != st.session_state.uploaded_file:
+            st.session_state.uploaded_file = uploaded_file
+            try:
+                st.session_state.file_content = uploaded_file.getvalue().decode("utf-8")
+                st.rerun()  # Update progress bar immediately
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
+                st.session_state.file_content = None
+                st.session_state.uploaded_file = None
+        
+        if st.session_state.file_content:
+            st.write("#### File Preview:")
+            st.code(st.session_state.file_content, language="yaml")
+            
+            if st.button("▶ Next: Generate Specification"):
+                if input_tech is None or output_tech is None:
+                    st.error("Please select both Input Tech and Output Tech")
+                elif not is_conversion_supported(input_tech, output_tech):
+                    st.error(f"{input_tech} to {output_tech} conversion is not supported yet")
+                else:
+                    st.session_state.page = 2
+                    st.rerun()
+
+    # Page 2: Specification Generation
+    elif st.session_state.page == 2:
+        st.write("#### Specification Generation:")
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("◀ Back", key="back_btn_1"):
+                st.session_state.page = 1
+                st.rerun()
+        
+        if st.session_state.conversion_output is None:
+            if st.button("Generate Specification", key="gen_spec_btn"):
+                if not input_tech or not output_tech:
+                    st.error("Please select both Input Tech and Output Tech")
+                elif not is_conversion_supported(input_tech, output_tech):
+                    st.error(f"{input_tech} to {output_tech} conversion is not supported yet")
+                else:
+                    with st.spinner("Generating specification..."):
+                        try:
+                            if input_tech == "Azure YAML" and output_tech == "Jenkinsfile":
+                                st.session_state.conversion_output = initiate_conversation(st.session_state.file_content)
+                            #elif.....
+                            st.rerun()  # Update progress bar immediately
+                        except Exception as e:
+                            st.error(f"Specification generation failed: {e}")
+        
+        if st.session_state.conversion_output:
+            st.code(st.session_state.conversion_output, language="yaml")
+            
+            if st.button("▶ Next: Generate Final Code", key="next_btn_2"):
+                st.session_state.page = 3
+                st.rerun()
+
+    # Page 3: Final Code Generation
+    elif st.session_state.page == 3:
+        st.write("#### Final Code Generation:")
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("◀ Back", key="back_btn_2"):
+                st.session_state.page = 2
+                st.rerun()
+        
+        if st.session_state.final_code is None:
+            if st.button("Generate Final Code", key="gen_code_btn"):
+                if not input_tech or not output_tech:
+                    st.error("Please select both Input Tech and Output Tech")
+                elif not is_conversion_supported(input_tech, output_tech):
+                    st.error(f"{input_tech} to {output_tech} conversion is not supported yet")
+                else:
+                    with st.spinner("Generating final code..."):
+                        try:
+                            if input_tech == "Azure YAML" and output_tech == "Jenkinsfile":
+                                st.session_state.final_code = final_conversation(st.session_state.conversion_output)
+                            #elif...
+                            st.rerun()  # Update progress bar immediately
+                        except Exception as e:
+                            st.error(f"Code generation failed: {e}")
+        
+        if st.session_state.final_code:
+            st.code(st.session_state.final_code, language="yaml")
+            
+            # Determine appropriate file extension
+            file_ext = "yaml" if output_tech != "Jenkinsfile" else "jenkinsfile"
+            st.download_button(
+                label="💾Download Code",
+                data=st.session_state.final_code,
+                file_name=f"converted_{output_tech.lower().replace(' ', '_')}.{file_ext}",
+                mime="text/yaml"
+            )
+
+if __name__ == "__main__":
+    show()

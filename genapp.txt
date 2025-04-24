@@ -1,8 +1,10 @@
 import streamlit as st
 import docx
-from test import spec_gen, generate_combined_specification, convert_specification_to_code
-from test import generate_jenkins_from_json_spec
-from GenCode_v14 import extract_stages_tools
+from GenSpec import generate_combined_specification
+from ExtractStages import extract_stages_tools
+from SpecGen import spec_gen
+from CodeGen import generate_jenkins_from_json_spec
+from GenCode import convert_specification_to_code
 import json
 
 def render_text_progress_bar(current_step):
@@ -318,12 +320,16 @@ def show():
             
             if st.session_state.extracted_data:
                 st.write("**Extracted Stages:**")
-                for item in st.session_state.extracted_data:
-                    st.write(f"**Stage:** {item['stage']}, **Tools:** {', '.join(item['tools'])}")
                 
-                cols = st.columns([5, 4, 5])
+                if isinstance(st.session_state.extracted_data, list):
+                    for item in st.session_state.extracted_data:
+                        st.write(f"**Stage:** {item['stage']}, **Tools:** {', '.join(item['tools'])}")
+                else:
+                    st.write(st.session_state.extracted_data)
+                
+                cols = st.columns([1, 1, 0.75])
                 with cols[2]:
-                    if st.button("▶ Next: Generate Specification", key="next1"):
+                    if st.button("▶ Next: Generate Spec", key="next1"):
                         st.session_state.active_step = 2
                         st.rerun()
 
@@ -331,24 +337,28 @@ def show():
         elif st.session_state.active_step == 2:
             st.subheader("2. Generate Specification")
             
-            col1, col2 = st.columns([1, 4])
-            with col1:
-                if st.button("◀ Back"):
-                    st.session_state.active_step = 1
-                    st.rerun()
+ #           col1, col2 = st.columns([1, 4])
+ #           with col1:
+ #               if st.button("◀ Back"):
+ #                   st.session_state.active_step = 1
+ #                   st.rerun()
             
             if not st.session_state.specification:
-                if st.button("Generate Specification"):
-                    with st.spinner("Generating..."):
-                        st.session_state.specification = generate_combined_specification(st.session_state.extracted_data)
-                        st.rerun()
+#                if st.button("Generate Specification"):
+                with st.spinner("Generating..."):
+                    st.session_state.specification = generate_combined_specification(st.session_state.extracted_data)
+                    st.rerun()
             
             if st.session_state.specification:
                 st.write("**Specifications:**")
                 st.code(st.session_state.specification, language='markdown')
                 
-                cols = st.columns([6, 7, 5])
+                cols = st.columns([1, 1, 0.75])
                 with cols[0]:
+                    if st.button("◀ Back"):
+                        st.session_state.active_step = 1
+                        st.rerun()
+                with cols[1]:
                     st.download_button(
                         label="💾 Download Specification",
                         data=st.session_state.specification,
@@ -364,28 +374,34 @@ def show():
         elif st.session_state.active_step == 3:
             st.subheader("3. Generate Pipeline Code")
             
-            col1, col2 = st.columns([1, 4])
-            with col1:
-                if st.button("◀ Back"):
-                    st.session_state.active_step = 2
-                    st.rerun()
+            # col1, col2 = st.columns([1, 4])
+            # with col1:
+            #     if st.button("◀ Back"):
+            #         st.session_state.active_step = 2
+            #         st.rerun()
             
             if not st.session_state.pipeline_code:
-                if st.button("Generate Pipeline Code"):
-                    with st.spinner("Generating code..."):
-                        st.session_state.pipeline_code = convert_specification_to_code(st.session_state.specification)
-                        st.rerun()
+                # if st.button("Generate Pipeline Code"):
+                 with st.spinner("Generating code..."):
+                     st.session_state.pipeline_code = convert_specification_to_code(st.session_state.specification)
+                     st.rerun()
             
             if st.session_state.pipeline_code:
                 st.write("**Generated Code:**")
                 st.code(st.session_state.pipeline_code, language='yaml')
                 
-                st.download_button(
-                    label="💾 Download Pipeline",
-                    data=st.session_state.pipeline_code,
-                    file_name="pipeline.yaml",
-                    mime="text/yaml"
-                )
+                cols = st.columns([1,1,0.75])
+                with cols[0]:
+                    if st.button("◀ Back"):
+                        st.session_state.active_step = 2
+                        st.rerun()
+                with cols[1]:
+                    st.download_button(
+                        label="💾 Download Pipeline",
+                        data=st.session_state.pipeline_code,
+                        file_name="pipeline.yaml",
+                        mime="text/yaml"
+                    )
 
     elif st.session_state.input_method == "file":
     # Step Content

@@ -1,5 +1,6 @@
 import streamlit as st
-from test import initiate_conversation, final_conversation
+from SourceToSpecAgent import generate_spec_from_code
+from SpecToCode import convert_specification_to_jenkins
 
 def render_progress_bar(current_step):
     steps = ["Upload File", "Create Specification", "Generate Code"]
@@ -135,40 +136,44 @@ def show():
     render_progress_bar(st.session_state.page)
 
     # Technology selection
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         input_tech = st.selectbox("Input Tech", ["Azure YAML", "GitHub Actions", "Jenkinsfile", "AWS"], index=None, placeholder="Select Input Tech")
     with col2:
         output_tech = st.selectbox("Output Tech", ["Azure YAML", "GitHub Actions", "Jenkinsfile", "AWS"], index=None, placeholder="Select Output Tech")
+    with col3:
+        os = st.selectbox("OS", ["Linux", "Windows"], index=None, placeholder="Select OS")
 
     # Page 1: File Upload
     if st.session_state.page == 1:
         st.write("### Upload your pipeline file:")
         
-        uploaded_file = st.file_uploader("Choose a file", 
-                                       type=["yaml", "yml", "json"],
-                                       key="file_uploader")
+        if input_tech is None or output_tech is None or os is None:
+            st.info("Please select Input Tech, Output Tech & OS")
+        elif not is_conversion_supported(input_tech, output_tech):
+            st.error(f"{input_tech} to {output_tech} conversion is not supported yet")
+        else:
+            uploaded_file = st.file_uploader("Choose a file", 
+                                           type=["yaml", "yml", "json"],
+                                           key="file_uploader")
         
-        if uploaded_file is not None and uploaded_file != st.session_state.uploaded_file:
-            st.session_state.uploaded_file = uploaded_file
-            try:
-                st.session_state.file_content = uploaded_file.getvalue().decode("utf-8")
-                st.rerun()  # Update progress bar immediately
-            except Exception as e:
-                st.error(f"Error reading file: {e}")
-                st.session_state.file_content = None
-                st.session_state.uploaded_file = None
+            if uploaded_file is not None and uploaded_file != st.session_state.uploaded_file:
+                st.session_state.uploaded_file = uploaded_file
+                try:
+                    st.session_state.file_content = uploaded_file.getvalue().decode("utf-8")
+                    st.rerun()  # Update progress bar immediately
+                except Exception as e:
+                    st.error(f"Error reading file: {e}")
+                    st.session_state.file_content = None
+                    st.session_state.uploaded_file = None
         
         if st.session_state.file_content:
             st.write("#### File Preview:")
             st.code(st.session_state.file_content, language="yaml")
             
-            if st.button("▶ Next: Generate Specification"):
-                if input_tech is None or output_tech is None:
-                    st.error("Please select both Input Tech and Output Tech")
-                elif not is_conversion_supported(input_tech, output_tech):
-                    st.error(f"{input_tech} to {output_tech} conversion is not supported yet")
-                else:
+            cols = st.columns([1, 1, 0.75])
+            with cols[2]:
+                if st.button("▶ Next: Generate Spec", key="next1"):
                     st.session_state.page = 2
                     st.rerun()
 
@@ -176,11 +181,11 @@ def show():
     elif st.session_state.page == 2:
         st.write("#### Specification Generation:")
         
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            if st.button("◀ Back", key="back_btn_1"):
-                st.session_state.page = 1
-                st.rerun()
+        # col1, col2 = st.columns([1, 4])
+        # with col1:
+        #     if st.button("◀ Back", key="back_btn_1"):
+        #         st.session_state.page = 1
+        #         st.rerun()
         
         if st.session_state.conversion_output is None:
             if st.button("Generate Specification", key="gen_spec_btn"):
@@ -192,7 +197,7 @@ def show():
                     with st.spinner("Generating specification..."):
                         try:
                             if input_tech == "Azure YAML" and output_tech == "Jenkinsfile":
-                                st.session_state.conversion_output = initiate_conversation(st.session_state.file_content)
+                                st.session_state.conversion_output = generate_spec_from_code(st.session_state.file_content,os)
                             #elif.....
                             st.rerun()  # Update progress bar immediately
                         except Exception as e:
@@ -201,19 +206,32 @@ def show():
         if st.session_state.conversion_output:
             st.code(st.session_state.conversion_output, language="yaml")
             
-            if st.button("▶ Next: Generate Final Code", key="next_btn_2"):
-                st.session_state.page = 3
-                st.rerun()
+            cols = st.columns([1, 1, 0.75])
+            with cols[0]:
+                if st.button("◀ Back", key="back_btn_1"):
+                    st.session_state.page = 1
+                    st.rerun()
+            with cols[1]:
+                st.download_button(
+                    label="💾 Download Specification",
+                    data=st.session_state.conversion_output,
+                    file_name="specification.json",
+                    mime="json"
+                )
+            with cols[2]:
+                if st.button("▶ Next: Generate Code", key="next_btn_2"):
+                    st.session_state.page = 3
+                    st.rerun()
 
     # Page 3: Final Code Generation
     elif st.session_state.page == 3:
         st.write("#### Final Code Generation:")
         
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            if st.button("◀ Back", key="back_btn_2"):
-                st.session_state.page = 2
-                st.rerun()
+        # col1, col2 = st.columns([1, 4])
+        # with col1:
+        #     if st.button("◀ Back", key="back_btn_2"):
+        #         st.session_state.page = 2
+        #         st.rerun()
         
         if st.session_state.final_code is None:
             if st.button("Generate Final Code", key="gen_code_btn"):
@@ -225,7 +243,7 @@ def show():
                     with st.spinner("Generating final code..."):
                         try:
                             if input_tech == "Azure YAML" and output_tech == "Jenkinsfile":
-                                st.session_state.final_code = final_conversation(st.session_state.conversion_output)
+                                st.session_state.final_code = convert_specification_to_jenkins(st.session_state.conversion_output,os)
                             #elif...
                             st.rerun()  # Update progress bar immediately
                         except Exception as e:
@@ -233,15 +251,28 @@ def show():
         
         if st.session_state.final_code:
             st.code(st.session_state.final_code, language="yaml")
-            
-            # Determine appropriate file extension
-            file_ext = "yaml" if output_tech != "Jenkinsfile" else "jenkinsfile"
-            st.download_button(
-                label="💾Download Code",
-                data=st.session_state.final_code,
-                file_name=f"converted_{output_tech.lower().replace(' ', '_')}.{file_ext}",
-                mime="text/yaml"
-            )
+
+            cols = st.columns([1,1,0.75])
+            with cols[0]:
+                if st.button("◀ Back", key="back_btn_2"):
+                    st.session_state.page = 2
+                    st.rerun()
+            with cols[1]:
+                file_ext = "yaml" if output_tech != "Jenkinsfile" else "jenkinsfile"
+                st.download_button(
+                    label="💾 Download Pipeline",
+                    data=st.session_state.final_code,
+                    file_name=f"converted_{output_tech.lower().replace(' ', '_')}.{file_ext}",
+                    mime="text/yaml"
+                ) 
+            # # Determine appropriate file extension
+            # file_ext = "yaml" if output_tech != "Jenkinsfile" else "jenkinsfile"
+            # st.download_button(
+            #     label="💾Download Code",
+            #     data=st.session_state.final_code,
+            #     file_name=f"converted_{output_tech.lower().replace(' ', '_')}.{file_ext}",
+            #     mime="text/yaml"
+            # )
 
 if __name__ == "__main__":
     show()

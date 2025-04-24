@@ -98,10 +98,20 @@ with st.sidebar:
    
     if st.button("⚙️ Code Generator"):
         st.session_state.current_page = "Code Generator"
+        st.session_state.active_step = 1
+        st.session_state.extracted_data = None
+        st.session_state.specification = None
+        st.session_state.pipeline_code = None
+        st.session_state.user_input = ""
         st.rerun()
    
     if st.button("🔄 Code Converter"):
         st.session_state.current_page = "Code Converter"
+        st.session_state.page = 1
+        st.session_state.conversion_output = None
+        st.session_state.file_content = None
+        st.session_state.final_code = None
+        st.session_state.file_content = None
         st.rerun()
    
     if st.button("🤖 GenAI Chatbot"):

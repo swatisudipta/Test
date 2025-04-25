@@ -4,6 +4,10 @@
       "embedding_text": "Building Java microservice with Gradle, analyzing code with SonarQube, deploying to Tomcat, uploading to Azure."
     },
     {
+      "user_input": "Generate a pipeline for Java maven application which is stored in Github.Then deploy in Tomcat.",
+      "embedding_text": "Checkout from Github, Building Java Application with Maven, Deploying to Tomcat"
+    },
+    {
       "user_input": "Develop a Python Django application, run static analysis with Bandit, package it in Docker, and deploy to AWS Lambda.",
       "embedding_text": "Developing Django app, running security checks with Bandit, packaging in Docker, deploying to AWS Lambda."
     },

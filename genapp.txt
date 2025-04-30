@@ -1,11 +1,17 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import docx
-from GenSpec import generate_combined_specification
-from ExtractStages import extract_stages_tools
-from SpecGen import spec_gen
-from CodeGen import generate_jenkins_from_json_spec
-from GenCode import convert_specification_to_code
-import json
+#from GenSpec import generate_combined_specification
+#from ExtractStages import extract_stages_tools
+#from SpecGen import spec_gen
+#from CodeGen import generate_jenkins_from_json_spec
+#from GenCode import convert_specification_to_code
+#from SpecToCode import convert_specification_to_jenkins
+#import json
+
+from test import spec_gen, generate_combined_specification, convert_specification_to_code, extract
+from test import generate_jenkins_from_json_spec
+from GenCode_v14 import extract_stages_tools
 
 def render_text_progress_bar(current_step):
     steps = ["Extract Stages and Tools","Create Specification","Generate Code"]
@@ -222,6 +228,12 @@ def render_file_progress_bar(current_step):
     html += '</div>'
     st.markdown(css + html, unsafe_allow_html=True)
 
+def is_generation_supported(tech):
+    supported_generation = [
+        "Azure YAML", "Jenkinsfile"
+        ]
+    return (tech) in supported_generation
+
 def show():
     if 'step' not in st.session_state:
         st.session_state.step = 1
@@ -229,6 +241,10 @@ def show():
         st.session_state.input_method = "text"
     if 'user_input' not in st.session_state:
         st.session_state.user_input = ""
+    if 'repo_link' not in st.session_state:
+        st.session_state.repo_link = ""
+    if 'extracted_details' not in st.session_state:
+        st.session_state.extracted_details = None
     if 'extracted_data' not in st.session_state:
         st.session_state.extracted_data = None
     if 'specification' not in st.session_state:
@@ -253,8 +269,10 @@ def show():
         if st.button("✍️ Enter Pipeline Description", use_container_width=True):
             st.session_state.input_method = "text"
             st.session_state.user_input = ""
+            st.session_state.repo_link = ""
             st.session_state.show_progress = True
             st.session_state.extracted_data = None
+            st.session_state.extracted_details = None
             st.session_state.specification = None
             st.session_state.pipeline_code = None
             st.session_state.active_step = 1
@@ -265,8 +283,10 @@ def show():
         if st.button("📁 Upload File", use_container_width=True):
             st.session_state.input_method = "file"
             st.session_state.user_input = ""
+            st.session_state.repo_link = ""
             st.session_state.show_progress = True
             st.session_state.extracted_data = None
+            st.session_state.extracted_details = None
             st.session_state.specification = None
             st.session_state.pipeline_code = None
             st.session_state.active_step = 1
@@ -274,53 +294,85 @@ def show():
 
     # Text input area (shown when text input method is selected)
     if st.session_state.input_method == "text":
-        st.markdown('<div class="narrow-textarea">', unsafe_allow_html=True)
+        disabled_select = st.session_state.active_step > 1
 
-        text_area_key = f"pipeline_input_text_{st.session_state.get('text_reset_counter', 0)}"
+        col1, col2 = st.columns(2)
+        with col1:
+            tech = st.selectbox("Pipeline Tech",["Azure YAML", "Jenkinsfile", "Github Actions", "AWS"], index=None, placeholder="Select Pipeline Technology", disabled=disabled_select)
+        with col2:
+            os = st.selectbox("OS",["Windows", "Linux"], index=None, placeholder="Select Operating System", disabled=disabled_select)
+
+        if tech is None or os is None:
+            st.info("Please select Pipeline Technology & OS")
+        elif not is_generation_supported(tech):
+            st.error(f"{tech} generation is not supported yet")
+        else:
+            st.markdown('<div class="narrow-textarea">', unsafe_allow_html=True)
+            text_area_key = f"pipeline_input_text_{st.session_state.get('text_reset_counter', 0)}"
+            repo_link_key = f"repo_link_input_{st.session_state.get('text_reset_counter', 0)}"
        
-        def on_text_change():
-            if st.session_state.get(text_area_key, "") == "":
-                st.session_state.text_reset_counter = st.session_state.get('text_reset_counter', 0) + 1
-                st.session_state.user_input = ""
+            def on_text_change():
+                if st.session_state.get(text_area_key, "") == "":
+                    st.session_state.text_reset_counter = st.session_state.get('text_reset_counter', 0) + 1
+                    st.session_state.user_input = ""
+                    st.session_state.extracted_data = None
+                    st.session_state.extracted_details = None
+                    st.session_state.specification = None
+                    st.session_state.pipeline_code = None
+                    st.session_state.active_step = 1
+                    st.rerun()
+
+            repo_link = st.text_input(
+                "Repository Link:",
+                placeholder="https://github.com/your/repo.git",
+                value=st.session_state.repo_link,
+                key=repo_link_key
+            )
+            user_input = st.text_area(
+                "Enter your Pipeline Requirements:",
+                height=75,
+                placeholder="Describe your pipeline requirements in detail...",
+                value=st.session_state.user_input,
+                key=text_area_key,
+                on_change=on_text_change
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
+       
+            if user_input and user_input!= st.session_state.user_input:
+                st.session_state.user_input = user_input
                 st.session_state.extracted_data = None
+                st.session_state.extracted_details = None
                 st.session_state.specification = None
                 st.session_state.pipeline_code = None
                 st.session_state.active_step = 1
                 st.rerun()
 
-        user_input = st.text_area(
-            "Enter your Pipeline Requirements:",
-            height=75,
-            placeholder="Describe your pipeline requirements in detail...",
-            value=st.session_state.user_input,
-            key=text_area_key,
-            on_change=on_text_change
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
-       
-        if user_input and user_input!= st.session_state.user_input:
-            st.session_state.user_input = user_input
-            st.session_state.extracted_data = None
-            st.session_state.specification = None
-            st.session_state.pipeline_code = None
-            st.session_state.active_step = 1
-            st.rerun()
+            if repo_link and repo_link!= st.session_state.repo_link:
+                st.session_state.repo_link = repo_link
+                st.rerun()
 
     # Process steps based on current active step 
     if st.session_state.user_input:
         # Step 1: Extraction
         if st.session_state.active_step == 1:
-            st.subheader("1. Extract Stages and Tools")
+            st.subheader("1. Extract Details")
             
             if not st.session_state.extracted_data:
-                if st.button("Extract Stages and Tools"):
-                    with st.spinner("Extracting..."):
+                if st.button("Extract 🔎"):
+                    with st.spinner("Extracting...."):
+                        st.session_state.extracted_details = extract(st.session_state.repo_link)
                         st.session_state.extracted_data = extract_stages_tools(st.session_state.user_input)
                         st.rerun()
-            
+
+            if st.session_state.extracted_details:
+                st.write("**Extracted Data:**")
+                st.code(st.session_state.extracted_details, language='markdown')
+                with open("test.html", 'r', encoding='utf-8') as f:
+                    html_content = f.read()
+                st.write("**Dependency Graph:**")
+                components.html(html_content, height=200, scrolling=True) 
             if st.session_state.extracted_data:
-                st.write("**Extracted Stages:**")
-                
+                st.write("**Extracted Stages and Tools:**")    
                 if isinstance(st.session_state.extracted_data, list):
                     for item in st.session_state.extracted_data:
                         st.write(f"**Stage:** {item['stage']}, **Tools:** {', '.join(item['tools'])}")
@@ -383,7 +435,10 @@ def show():
             if not st.session_state.pipeline_code:
                 # if st.button("Generate Pipeline Code"):
                  with st.spinner("Generating code..."):
-                     st.session_state.pipeline_code = convert_specification_to_code(st.session_state.specification)
+                     if tech == "Azure YAML":
+                        st.session_state.pipeline_code = convert_specification_to_code(st.session_state.specification)
+                     elif tech == "Jenkinsfile":
+                         st.session_state.pipeline_code = convert_specification_to_jenkins(st.session_state.specification,os)
                      st.rerun()
             
             if st.session_state.pipeline_code:

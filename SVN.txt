@@ -1,0 +1,3 @@
+Created SVN server in my AVD as code repository. Install SVN client (TortoiseSVN - https://tortoisesvn.net/downloads.html) in your AVD and connect the code repository with the URL - https://avdgenailb6-1/svn/TCS_BFSI_ROW_CTO
+
+Keep master code in https://avdgenailb6-1/svn/TCS_BFSI_ROW_CTO/trunk and create branches in https://avdgenailb6-1/svn/TCS_BFSI_ROW_CTO/branches for working features.

@@ -1,0 +1,73 @@
+ClarifAI:
+
+Why:
+Challenges in translating the ambiguous business requirements into actionable outcomes​
+
+Large effort spend from requirements to test cases​
+
+Misinterpretation of requirements across teams.​
+
+Redundant grooming and clarification cycles​
+
+Need for improving traceability and Testability
+
+What:
+GenAI-powered solution that transforms the requirement engineering phase of the Software Development Life Cycle (SDLC).​
+
+.Eliminate the first-mile inefficiency in SDLC by automatically converting requirements documents into user stories, test cases and BDD scripts​
+
+Ensure the journey from business vision to working software is accurate, fast and test ready
+
+How:
+Automated Requirement Extraction and Validation : Extract, Classify functional and nonfunctional  requirements from BRD  and validate the same using with the help of different agents.​
+
+User Story Generation:  Converts the requirements from agile ready user stories and integrate the same with Jira​
+
+Test Case and BDD Scripts generation : Create test cases from user stories and gherkin-based test scenarios​
+
+Creation of Traceability : Create traceability from requirements to user stories and test cases
+
+
+DevXcelerate
+
+Why
+
+Developers struggle with tech stack discovery and build dependency
+mapping​
+
+Manual pipeline creation is time-consuming and error-prone​
+
+Inconsistent quality across DevOps stages leads to deployment
+inefficiencies​
+
+Existing tools lack the intelligence to automatically generate or adapt
+pipeline configurations according to the project specification​
+
+Need of specialized expertise in various platforms like Azure DevOps,
+Jenkins, Gitlab CI​
+
+Cross-platform pipeline conversion lacks standardization
+
+
+What
+
+Powering DevOps with Generative Intelligence​
+
+Intelligent Codebase Insights: Detects tech sack, uncovers dependencies, and
+recommends pipeline stages-reducing guesswork and accelerating the setup​
+
+Adaptive Pipeline Generation: Automatically produces environment-specific
+CI/CD pipelines based on tech stack, dependencies and developer preference​
+
+Cross-Platform Transformation: By drastically reducing manual effort, the
+platform accelerates pipeline development and boosts overall team
+productivity​
+
+Agent-led & Human-in-the-loop Pipeline Optimization:   Autonomous
+agent interactions between RefinerAgent and DevOpsExpertAgent,
+coupled with human-in-the-loop input, ensures continuous optimization
+of generated pipeline code. User input is prioritized at any stage
+,allowing seamless human intervention and tailored enhancements​
+
+​
+
